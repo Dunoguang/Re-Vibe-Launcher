@@ -9,7 +9,6 @@ local.properties
 *.pem
 *.jks
 revibe-launcher.p12.b64
-app/src/main/assets/index.html
 pack/dist/
 pack/node_modules/
 *.apk
