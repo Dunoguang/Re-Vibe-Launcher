@@ -1,0 +1,16 @@
+.gradle/
+local.properties
+.idea/
+*.iml
+.DS_Store
+/build/
+/app/build/
+*.p12
+*.pem
+*.jks
+revibe-launcher.p12.b64
+app/src/main/assets/index.html
+pack/dist/
+pack/node_modules/
+*.apk
+logcat_*.txt
