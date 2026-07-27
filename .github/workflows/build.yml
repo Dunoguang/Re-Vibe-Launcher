@@ -15,6 +15,11 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v7
 
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: ☕ Setup Java
         uses: actions/setup-java@v5.4.0
         with:
@@ -23,6 +28,14 @@ jobs:
 
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v6.2.0
+
+      - name: 🏗️ Build Frontend (Vite)
+        run: |
+          cd pack
+          npm ci
+          npm run build
+          mkdir -p ../app/src/main/assets
+          cp dist/index.html ../app/src/main/assets/index.html
 
       - name: 🏗️ Build Release APK
         env:

@@ -9,6 +9,8 @@ local.properties
 *.pem
 *.jks
 revibe-launcher.p12.b64
+# 前端产物，从 pack/ 构建而来
+app/src/main/assets/index.html
 pack/dist/
 pack/node_modules/
 *.apk
