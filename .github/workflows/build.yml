@@ -15,48 +15,47 @@ jobs:
       - name: 📥 叼取代码 喵～
         uses: actions/checkout@v7.0.0
 
-      - name: 🛠️ 环境准备 喵～
+      - name: 🛠️ Node.js 环境准备 喵～
         uses: actions/setup-node@v6
         with: { node-version: '24' }
       
-      - uses: actions/setup-java@v5.4.0
+      - name: ☕ Java 环境准备 喵～
+        uses: actions/setup-java@v5.4.0
         with:
           distribution: temurin
           java-version: '25'
 
-      - uses: gradle/actions/setup-gradle@v6.2.0
+      - name: 🐘 Gradle 环境准备 喵～
+        uses: gradle/actions/setup-gradle@v6.2.0
 
-      - name: 🏗️ 构建前端 + 签名 + 打包 喵～
+      - name: 🏗️ 构建前端 喵～
+        run: |
+          cd pack
+          npm ci
+          npm run build
+          mkdir -p ../app/src/main/assets
+          cp dist/index.html ../app/src/main/assets/index.html
+
+      - name: 🔑 签名配置 喵～
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
-          # 构建前端
-          cd pack
-          npm ci
-          npm run build
-          mkdir -p ../app/src/main/assets
-          cp dist/index.html ../app/src/main/assets/index.html
-          
-          # ⚠️ 重要：回到项目根目录
-          cd ..
-          
-          # 准备签名
           if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/revibe-launcher.p12"
-            export ANDROID_SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/revibe-launcher.p12"
-            export ANDROID_SIGNING_STORE_PASSWORD="$STORE_PASSWORD"
-            export ANDROID_SIGNING_KEY_ALIAS="$KEY_ALIAS"
-            export ANDROID_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+            echo "ANDROID_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/revibe-launcher.p12" >> $GITHUB_ENV
+            echo "ANDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> $GITHUB_ENV
+            echo "ANDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "ANDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
             echo "✅ 签名配置完成 喵～"
           else
             echo "⚠️ 无签名密钥，将使用 Debug 签名 喵～"
           fi
-          
-          # 构建
-          gradle --no-daemon :app:assembleRelease
+
+      - name: 📦 打包 APK 喵～
+        run: gradle --no-daemon :app:assembleRelease
 
       - name: ☁️ 上传并写入 Summary 喵～
         if: success()
