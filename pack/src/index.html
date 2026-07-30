@@ -180,6 +180,7 @@
     <p class="subtitle">权限管理 · 点击即可申请授权</p>
 
     <div class="summary" id="summary">检查中...</div>
+    <div class="summary" id="device-info" style="font-size:0.75rem;opacity:0.35;margin-top:-12px;margin-bottom:16px;"></div>
 
     <div id="perm-container"></div>
 
@@ -203,10 +204,6 @@
             { key: 'writeSettings',    name: '修改系统设置',    desc: 'WRITE_SETTINGS' },
             { key: 'overlay',          name: '悬浮窗',          desc: 'SYSTEM_ALERT_WINDOW' },
             { key: 'notificationListener', name: '通知监听',    desc: 'BIND_NOTIFICATION_LISTENER' }
-        ],
-        '进程身份': [
-            { key: 'shell',            name: 'Shell 身份',       desc: 'uid 2000，ADB/shell 级别' },
-            { key: 'root',             name: 'Root 身份',        desc: 'uid 0，系统最高权限' }
         ],
         'Shell 执行': [
             { key: 'shizuku',          name: 'Shizuku',         desc: '服务式 Shell 执行' }
@@ -298,6 +295,78 @@
     }
 
     // ===================== 渲染权限列表 =====================
+    // ===================== 设备能力检测（前端侧，通过 execShell） =====================
+    let deviceInfo = { uid: null, isRoot: false, isShell: false, hasSU: false };
+
+    async function detectDevice() {
+        const infoEl = document.getElementById('device-info');
+        if (!infoEl) return;
+        infoEl.innerHTML = '⏳ 检测设备能力...';
+        try {
+            // uid 检测
+            try {
+                const uidRes = await execShell('id -u');
+                const uid = (uidRes.stdout || '').trim();
+                deviceInfo.uid = uid;
+                deviceInfo.isRoot = uid === '0';
+                deviceInfo.isShell = uid === '2000';
+            } catch(e) {}
+            // su 检测
+            try {
+                const suRes = await execShell('su -c whoami 2>/dev/null || echo no');
+                deviceInfo.hasSU = suRes.success && (suRes.stdout || '').trim() === 'root';
+            } catch(e) {}
+            // shizuku
+            try {
+                const raw = NativeBridge.shizukuIsConnected();
+                const info = JSON.parse(raw);
+                deviceInfo.shizukuConnected = info.connected === true;
+            } catch(e) {}
+            updateDeviceInfo();
+        } catch(e) {
+            infoEl.innerHTML = '⚠️ 设备检测失败';
+        }
+    }
+
+    function updateDeviceInfo() {
+        const el = document.getElementById('device-info');
+        if (!el) return;
+        const parts = [];
+        if (deviceInfo.uid) parts.push('UID: ' + deviceInfo.uid);
+        if (deviceInfo.isRoot) parts.push('👑 Root');
+        else if (deviceInfo.isShell) parts.push('🔧 Shell');
+        else parts.push('📱 App');
+        if (deviceInfo.hasSU) parts.push('🔫 su');
+        if (deviceInfo.shizukuConnected) parts.push('🔌 Shizuku');
+        el.innerHTML = '设备: ' + parts.join(' · ');
+    }
+
+    // ========== execShell 封装（同原项目 shell.js） ==========
+    function execShell(command) {
+        return new Promise((resolve, reject) => {
+            if (typeof NativeBridge === 'undefined' || !NativeBridge.execShell) {
+                reject('NativeBridge.execShell 不可用');
+                return;
+            }
+            const callbackId = 'cb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            window._onShellResult = function(result) {
+                try {
+                    const r = (typeof result === 'string') ? JSON.parse(result) : result;
+                    if (r.callbackId !== callbackId) return;
+                    resolve({
+                        stdout: r.stdout || '',
+                        stderr: r.stderr || '',
+                        success: r.statusCode === 0,
+                        statusCode: r.statusCode
+                    });
+                } catch (e) {
+                    reject('回调解析失败: ' + e.message);
+                }
+            };
+            NativeBridge.execShell(command, callbackId);
+        });
+    }
+
     function renderPermissions(status) {
         const container = document.getElementById('perm-container');
         let html = '';
@@ -356,6 +425,7 @@
     // ===================== 页面加载 =====================
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(checkPermissions, 300);
+        setTimeout(detectDevice, 600);
     });
     </script>
 </body>

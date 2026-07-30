@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Process
 import android.provider.Settings
 import android.webkit.JavascriptInterface
 import androidx.core.app.ActivityCompat
@@ -48,9 +47,6 @@ class PermissionModule(private val bridge: JsBridge) {
             // Shizuku
             "shizuku" to ShizukuAPI.isConnected(),
 
-            // Shell / Root 权限
-            "shell" to (Process.myUid() == Process.SHELL_UID),
-            "root" to (Process.myUid() == 0),
 
             // 通知监听
             "notificationListener" to isNotificationListenerEnabled(context),
@@ -103,18 +99,6 @@ class PermissionModule(private val bridge: JsBridge) {
             "shizuku"               -> {
                 callbackResult(callbackId, ShizukuAPI.isConnected(),
                     if (ShizukuAPI.isConnected()) "Shizuku 已连接" else "Shizuku 未连接，请打开 Shizuku App")
-            }
-
-            // ---- Shell / Root 权限 ----
-            "shell" -> {
-                val avail = Process.myUid() == Process.SHELL_UID
-                callbackResult(callbackId, avail,
-                    if (avail) "✅ 当前为 Shell 身份 (uid 2000)" else "ℹ️ 非 Shell 身份 (uid ${Process.myUid()})")
-            }
-            "root" -> {
-                val avail = Process.myUid() == 0
-                callbackResult(callbackId, avail,
-                    if (avail) "✅ 当前为 Root 身份 (uid 0)" else "ℹ️ 非 Root 身份 (uid ${Process.myUid()})")
             }
 
             // ---- WiFi 权限（通常已授予，直接返回状态） ----

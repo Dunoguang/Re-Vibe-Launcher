@@ -1,7 +1,6 @@
 package com.dng.revibe.launcher
 
 import android.content.Context
-import android.os.Process
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import java.lang.ref.WeakReference
@@ -44,7 +43,6 @@ class JsBridge(context: Context, webView: WebView) {
 
     // ============ Android 身份检测 ============
     @JavascriptInterface
-    fun getMyUid(): Int = Process.myUid()
 
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {
