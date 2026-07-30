@@ -12,39 +12,59 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.TextView
 
-/**
- * 悬浮窗 — 下拉展开控制中心 / 上拉收回
- *
- * 窗口初始仅 10% 高（拉手），下拉时窗口升高、内容滑入。
- * 拖动超过 30% 阈值自动展开/收回。
- */
 class FloatWindow(context: Context) {
 
     private val appContext = context.applicationContext
-
     private var windowManager: WindowManager? = null
     private var rootView: FrameLayout? = null
     private var container: FrameLayout? = null
     private var currentParams: WindowManager.LayoutParams? = null
     private var onTapCallback: (() -> Unit)? = null
-
-    // 尺寸缓存（横竖屏切换后重新计算）
     private var screenH = 0
     private var contentH = 0
     private var tabH = 0
     private var totalH = 0
-
-    // 手势
     private var isDragging = false
-    private var lastDragDirection = 0  // 1=向下(展开)  -1=向上(收回)
     private var dragStartY = 0f
     private var dragStartTransY = 0f
     private var dragStartWindowH = 0
+    private var lastDragDirection = 0
 
     companion object {
         private const val EXPAND_THRESHOLD = 0.15f
         private const val COLLAPSE_THRESHOLD = 0.85f
-        private val CONTROL_CENTER_HTML = "<!DOCTYPE html><html><head><meta charset=UTF-8><meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Segoe UI,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px;display:flex;flex-direction:column}h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}.card{background:rgba(255,255,255,.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px)}.card .label{font-size:12px;opacity:.6}.info{background:rgba(255,255,255,.04);border-radius:14px;padding:14px 16px;font-size:13px;opacity:.7;text-align:center}</style></head><body><h1>CONTROL CENTER</h1><div class=info>Re-Vibe Launcher</div><div class=grid><div class=card><div class=label>WiFi</div></div><div class=card><div class=label>Volume</div></div><div class=card><div class=label>Bright</div></div><div class=card><div class=label>Rotate</div></div><div class=card><div class=label>Airplane</div></div><div class=card><div class=label>Flash</div></div></div><div class=info>Swipe up to close</div></body></html>"
+        private val CONTROL_CENTER_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px;display:flex;flex-direction:column}
+h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.card{background:rgba(255,255,255,.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px)}
+.card .label{font-size:12px;opacity:.6}
+.info{background:rgba(255,255,255,.04);border-radius:14px;padding:14px 16px;font-size:13px;opacity:.7;text-align:center}
+</style>
+</head>
+<body>
+<h1>CONTROL CENTER</h1>
+<div class=info>Re-Vibe Launcher</div>
+<div class=grid>
+<div class=card><div class=label>WiFi</div></div>
+<div class=card><div class=label>Volume</div></div>
+<div class=card><div class=label>Bright</div></div>
+<div class=card><div class=label>Rotate</div></div>
+<div class=card><div class=label>Airplane</div></div>
+<div class=card><div class=label>Flash</div></div>
+</div>
+<div class=info>Swipe up to close</div>
+</body>
+</html>
+"""
+    }
 
     // ==================== 公开接口 ====================
 
@@ -67,11 +87,10 @@ class FloatWindow(context: Context) {
         windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         recalcDimensions()
 
-        // 拉手
         val tab = FrameLayout(appContext).apply {
             setBackgroundColor(0xCC2A1E3C.toInt())
             val label = TextView(appContext).apply {
-                text = "⋮ 下拉展开 ⋮"
+                text = "\u22EE \u4E0B\u62C9\u5C55\u5F00 \u22EE"
                 textSize = 13f
                 setTextColor(0xAAFFFFFF.toInt())
                 gravity = Gravity.CENTER
@@ -82,7 +101,6 @@ class FloatWindow(context: Context) {
             ))
         }
 
-        // 内容区 — WebView 显示网页
         val contentArea = FrameLayout(appContext).apply {
             setBackgroundColor(0xE61A1A2E.toInt())
             val webView = android.webkit.WebView(appContext).apply {
@@ -99,7 +117,6 @@ class FloatWindow(context: Context) {
             ))
         }
 
-        // 容器（总高 110%，内容在上、拉手在下，整体上移）
         container = FrameLayout(appContext).apply {
             addView(contentArea, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, contentH
@@ -110,7 +127,6 @@ class FloatWindow(context: Context) {
             translationY = -contentH.toFloat()
         }
 
-        // 根布局 — onInterceptTouchEvent 拦截垂直滑动，穿透点击给 WebView
         rootView = object : FrameLayout(appContext) {
             private var touchStartY = 0f
             private var intercepting = false
@@ -127,7 +143,6 @@ class FloatWindow(context: Context) {
                             val dy = kotlin.math.abs(ev.rawY - touchStartY)
                             if (dy > 20f) {
                                 intercepting = true
-                                // 合成初始 DOWN 给 onTouchEvent
                                 val down = MotionEvent.obtain(ev)
                                 down.action = MotionEvent.ACTION_DOWN
                                 onTouchEvent(down)
@@ -179,7 +194,6 @@ class FloatWindow(context: Context) {
     val isShowing: Boolean get() = rootView != null
 
     fun updateSize() {
-        // 可能从 JS 线程调用，切到主线程
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             android.os.Handler(android.os.Looper.getMainLooper()).post { updateSizeInternal() }
             return
@@ -192,7 +206,6 @@ class FloatWindow(context: Context) {
         val p = currentParams ?: return
         val v = rootView ?: return
         val wm = windowManager ?: return
-
         val newP = buildParams(if (p.height > tabH) screenH else tabH)
         p.width = newP.width
         p.height = newP.height
@@ -239,17 +252,10 @@ class FloatWindow(context: Context) {
         val p = currentParams ?: return
         val v = rootView ?: return
         val wm = windowManager ?: return
-
-        // 记录拖动方向
         lastDragDirection = if (dy > 0) 1 else -1
-
-        // translationY 范围: -contentH ~ 0
         val transY = (dragStartTransY + dy).coerceIn(-contentH.toFloat(), 0f)
-        val progress = 1f - (transY / -contentH) // 0~1
-
-        // 窗口高度从 tabH 到 screenH 线性变化
+        val progress = 1f - (transY / -contentH)
         val winH = (tabH + progress * (screenH - tabH)).toInt()
-
         c.translationY = transY
         p.height = winH
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
@@ -258,8 +264,6 @@ class FloatWindow(context: Context) {
     private fun snapDrag() {
         val c = container ?: return
         val p = currentParams ?: return
-
-        // 判断是否为点击（移动距离很小）
         val dragDistance = kotlin.math.abs(c.translationY - dragStartTransY)
 
         if (dragDistance < 20f && p.height <= tabH + 20) {
@@ -271,12 +275,10 @@ class FloatWindow(context: Context) {
         val progress = 1f - (c.translationY / -contentH)
 
         if (lastDragDirection > 0) {
-            // 展开方向：只要拉了超过 15% 就展开
-            if (progress > 0.15f) expand()
+            if (progress > EXPAND_THRESHOLD) expand()
             else animateTo(-contentH.toFloat(), tabH, null)
         } else {
-            // 收回方向：只要隐藏了超过 15% (progress < 85%) 就收回
-            if (progress < 0.85f) animateTo(-contentH.toFloat(), tabH, null)
+            if (progress < COLLAPSE_THRESHOLD) animateTo(-contentH.toFloat(), tabH, null)
             else expand()
         }
     }
@@ -339,9 +341,6 @@ class FloatWindow(context: Context) {
     }
 
     @Suppress("DEPRECATION")
-    private fun dp(value: Int): Int {
-        return (value * appContext.resources.displayMetrics.density).toInt()
-    }
     private fun getScreenHeight(): Int {
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -354,8 +353,6 @@ class FloatWindow(context: Context) {
             pt.y
         }
     }
-
-
 
     private fun cleanup() {
         rootView = null
