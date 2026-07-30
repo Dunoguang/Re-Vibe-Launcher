@@ -216,7 +216,8 @@ class FloatWindow(context: Context) {
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START; y = 0
-        @Suppress("DEPRECATION") flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+        @Suppress("DEPRECATION")
+        flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
     }
 
     @Suppress("DEPRECATION")
