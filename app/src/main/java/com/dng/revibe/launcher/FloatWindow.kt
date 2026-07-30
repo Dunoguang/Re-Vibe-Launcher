@@ -1,6 +1,8 @@
 package com.dng.revibe.launcher
 
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.view.Gravity
@@ -10,38 +12,41 @@ import android.widget.FrameLayout
 import android.widget.TextView
 
 /**
- * 悬浮窗管理
+ * 悬浮窗 — 单个实例，自适应横竖屏
  *
- * 高 = 屏幕高度的 10%，宽 = 100%
- * 点击悬浮窗内部 → 关闭并回调 JS
+ * 使用 applicationContext 避免 Activity 重建后失效。
+ * 横竖屏切换时通过 ComponentCallbacks 自动重新计算尺寸。
+ *
+ * 高 = 屏幕高 × 10%，宽 = 100%
  */
-class FloatWindow(private val context: Context) {
+class FloatWindow(context: Context) {
+
+    // 使用 applicationContext 以跨 Activity 生命周期
+    private val appContext: Context = context.applicationContext
 
     private var windowManager: WindowManager? = null
-    private var floatView: View? = null
+    private var rootView: View? = null
+    private var currentParams: WindowManager.LayoutParams? = null
     private var onTapCallback: (() -> Unit)? = null
+    private var configCallback: ComponentCallbacks? = null
 
-    /**
-     * 显示悬浮窗
-     * @param message 显示的文字
-     * @param onTap   点击时的回调
-     */
-    fun show(message: String = "Re-Vibe Launcher", onTap: (() -> Unit)? = null) {
-        hide() // 确保没有旧实例
-
+    fun show(onTap: (() -> Unit)? = null) {
         this.onTapCallback = onTap
-        windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val displayMetrics = context.resources.displayMetrics
-        val screenHeight = displayMetrics.heightPixels
-        val barHeight = (screenHeight * 0.1f).toInt()
+        if (rootView != null) {
+            // 已有窗口 → 仅更新尺寸（横竖屏切换）
+            updateLayout()
+            return
+        }
 
-        // 创建内容视图
-        val contentView = FrameLayout(context).apply {
-            setBackgroundColor(0xCC1A1A2E.toInt()) // 深色半透明
+        windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-            val label = TextView(context).apply {
-                text = message
+        // ---- 拉手视图 ----
+        val tab = FrameLayout(appContext).apply {
+            setBackgroundColor(0xCC1A1A2E.toInt())
+
+            val label = TextView(appContext).apply {
+                text = "点击关闭悬浮窗"
                 textSize = 14f
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER
@@ -57,52 +62,84 @@ class FloatWindow(private val context: Context) {
             }
         }
 
-        // 布局参数
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,  // 宽 100%
-            barHeight,                                 // 高 10%
+        rootView = tab
+        currentParams = createLayoutParams()
+
+        try {
+            windowManager?.addView(rootView, currentParams!!)
+            registerConfigCallback()
+        } catch (e: SecurityException) {
+            cleanup()
+        } catch (e: Exception) {
+            cleanup()
+        }
+    }
+
+    fun hide() {
+        unregisterConfigCallback()
+        rootView?.let { view ->
+            try { windowManager?.removeView(view) } catch (_: Exception) {}
+        }
+        cleanup()
+    }
+
+    val isShowing: Boolean get() = rootView != null
+
+    // ==================== 横竖屏自适应 ====================
+
+    private fun registerConfigCallback() {
+        unregisterConfigCallback()
+        configCallback = object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                updateLayout()
+            }
+            override fun onLowMemory() {}
+        }
+        appContext.registerComponentCallbacks(configCallback!!)
+    }
+
+    private fun unregisterConfigCallback() {
+        configCallback?.let { cb ->
+            try { appContext.unregisterComponentCallbacks(cb) } catch (_: Exception) {}
+            configCallback = null
+        }
+    }
+
+    private fun updateLayout() {
+        val params = currentParams ?: return
+        val view = rootView ?: return
+        val wm = windowManager ?: return
+
+        val newP = createLayoutParams()
+        params.width = newP.width
+        params.height = newP.height
+
+        try { wm.updateViewLayout(view, params) } catch (_: Exception) {}
+    }
+
+    private fun createLayoutParams(): WindowManager.LayoutParams {
+        val dm = appContext.resources.displayMetrics
+        val barHeight = (dm.heightPixels * 0.1f).toInt()
+
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            barHeight,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // 确保在状态栏下方
             y = 0
-            // 设置半透明状态栏区域的 flags
-            flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-        }
-
-        try {
-            windowManager?.addView(contentView, params)
-            floatView = contentView
-        } catch (e: SecurityException) {
-            // 没有悬浮窗权限
-            onTapCallback = null
-        } catch (e: Exception) {
-            onTapCallback = null
         }
     }
 
-    /**
-     * 隐藏悬浮窗
-     */
-    fun hide() {
-        floatView?.let { view ->
-            try {
-                windowManager?.removeView(view)
-            } catch (_: Exception) {}
-            floatView = null
-        }
+    private fun cleanup() {
+        rootView = null
+        currentParams = null
         onTapCallback = null
     }
-
-    /**
-     * 悬浮窗是否正在显示
-     */
-    val isShowing: Boolean get() = floatView != null
 }
