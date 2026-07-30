@@ -204,10 +204,12 @@
             { key: 'overlay',          name: '悬浮窗',          desc: 'SYSTEM_ALERT_WINDOW' },
             { key: 'notificationListener', name: '通知监听',    desc: 'BIND_NOTIFICATION_LISTENER' }
         ],
-        '进程身份 & Root': [
-            { key: 'shell',            name: 'Shell 身份',       desc: 'uid 2000, ADB/shell 级别' },
-            { key: 'shizuku',          name: 'Shizuku',         desc: '服务式 Shell 执行' },
-            { key: 'root',             name: 'Root 权限',       desc: 'uid 0，完整系统权限' }
+        '进程身份': [
+            { key: 'shell',            name: 'Shell 身份',       desc: 'uid 2000，ADB/shell 级别' },
+            { key: 'root',             name: 'Root 身份',        desc: 'uid 0，系统最高权限' }
+        ],
+        'Shell 执行': [
+            { key: 'shizuku',          name: 'Shizuku',         desc: '服务式 Shell 执行' }
         ],
         '系统功能': [
             { key: 'deviceAdmin',      name: '设备管理员',      desc: '锁屏权限' }

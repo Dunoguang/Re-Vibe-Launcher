@@ -1,6 +1,7 @@
 package com.dng.revibe.launcher
 
 import android.content.Context
+import android.os.Process
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import java.lang.ref.WeakReference
@@ -11,9 +12,9 @@ class JsBridge(context: Context, webView: WebView) {
 
     // 模块实例
     val permissionModule = PermissionModule(this)
+    private val shellModule = ShellModule(this)
     private val shizukuModule = ShizukuModule(this)
     private val adminModule = AdminModule(this)
-    private val shellModule = ShellModule(this)
 
     // ============ PermissionModule 委托 ============
     @JavascriptInterface
@@ -22,6 +23,10 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun requestPermission(permKey: String, callbackId: String) =
         permissionModule.requestPermission(permKey, callbackId)
+
+    // ============ ShellModule 委托 ============
+    @JavascriptInterface
+    fun execShell(command: String, callbackId: String) = shellModule.execShell(command, callbackId)
 
     // ============ ShizukuModule 委托 ============
     @JavascriptInterface
@@ -37,21 +42,9 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isAdminActive(callbackId: String) = adminModule.isAdminActive(callbackId)
 
-    // ============ ShellModule 委托（root/su 执行） ============
+    // ============ Android 身份检测 ============
     @JavascriptInterface
-    fun isShellUid(): String = shellModule.isShellUid()
-
-    @JavascriptInterface
-    fun isRootUid(): String = shellModule.isRootUid()
-
-    @JavascriptInterface
-    fun isRootAvailable(): String = shellModule.isRootAvailable()
-
-    @JavascriptInterface
-    fun hasShBinary(): String = shellModule.hasShBinary()
-
-    @JavascriptInterface
-    fun shellExec(command: String, callbackId: String) = shellModule.execShell(command, callbackId)
+    fun getMyUid(): Int = Process.myUid()
 
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {
