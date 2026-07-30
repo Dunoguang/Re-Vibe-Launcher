@@ -70,16 +70,19 @@ class FloatWindow(context: Context) {
             ))
         }
 
-        // 内容区
+        // 内容区 — WebView 显示网页
         val contentArea = FrameLayout(appContext).apply {
             setBackgroundColor(0xE61A1A2E.toInt())
-            val label = TextView(appContext).apply {
-                text = "控制中心"
-                textSize = 20f
-                setTextColor(0xFFFFFFFF.toInt())
-                gravity = Gravity.CENTER
+            val webView = android.webkit.WebView(appContext).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                setBackgroundColor(0x00000000.toInt())
+                // 随便加载个网页
+                loadUrl("https://example.com")
             }
-            addView(label, FrameLayout.LayoutParams(
+            addView(webView, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
