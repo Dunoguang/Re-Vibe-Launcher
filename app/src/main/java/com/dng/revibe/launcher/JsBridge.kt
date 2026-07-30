@@ -14,6 +14,7 @@ class JsBridge(context: Context, webView: WebView) {
     private val shellModule = ShellModule(this)
     private val shizukuModule = ShizukuModule(this)
     private val adminModule = AdminModule(this)
+    private val floatWindowModule = FloatWindowModule(this)
 
     // ============ PermissionModule 委托 ============
     @JavascriptInterface
@@ -41,7 +42,15 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isAdminActive(callbackId: String) = adminModule.isAdminActive(callbackId)
 
+    // ============ FloatWindowModule 委托 ============
     @JavascriptInterface
+    fun showFloatWindow(callbackId: String) = floatWindowModule.show(callbackId)
+
+    @JavascriptInterface
+    fun hideFloatWindow() = floatWindowModule.hide()
+
+    @JavascriptInterface
+    fun isFloatWindowShowing(): String = floatWindowModule.isShowing()
 
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {

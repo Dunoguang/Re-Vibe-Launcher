@@ -186,6 +186,10 @@
 
     <p class="click-hint">👆 点击任意未授权项进行授权</p>
 
+    <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="refresh-btn" style="flex:1;" onclick="openFloatWindow()">🪟 开启悬浮窗</button>
+        <button class="refresh-btn" style="flex:1;" onclick="closeFloatWindow()">✖️ 关闭悬浮窗</button>
+    </div>
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
     <div id="toast"></div>
@@ -419,6 +423,42 @@
                 ' 项（<strong>' + pct + '%</strong>）' +
                 ' · 未授权 <strong style="color:#ff453a;">' + (total - granted) + '</strong> 项' +
                 ' · 点击项授权';
+        }
+    }
+
+    // ===================== 悬浮窗控制 =====================
+    window._onFloatWindowTap = function(data) {
+        const d = (typeof data === 'string') ? JSON.parse(data) : data;
+        if (d.success) {
+            showToast('👋 悬浮窗已关闭', 'success');
+            setTimeout(checkPermissions, 300);
+        } else {
+            showToast('⚠️ ' + (d.message || '悬浮窗操作失败'), 'error');
+        }
+    };
+
+    function openFloatWindow() {
+        // 先检查悬浮窗权限
+        if (lastStatus.overlay === false) {
+            showToast('⚠️ 需要悬浮窗权限，请先授权', 'error');
+            // 自动跳转授权
+            requestPerm('overlay');
+            return;
+        }
+        try {
+            NativeBridge.showFloatWindow('fw_' + Date.now());
+            showToast('🪟 悬浮窗已显示，点击它关闭', 'success');
+        } catch(e) {
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
+        }
+    }
+
+    function closeFloatWindow() {
+        try {
+            NativeBridge.hideFloatWindow();
+            showToast('✖️ 悬浮窗已手动关闭', 'success');
+        } catch(e) {
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
         }
     }
 
