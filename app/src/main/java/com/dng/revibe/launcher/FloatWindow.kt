@@ -32,10 +32,88 @@ class FloatWindow(context: Context) {
         private const val COLLAPSE_THRESHOLD = 0.85f
     }
 
-    /** WebView 的 JS 接口：上滑检测后调用收回 */
+    /** WebView 的 JS 接口 */
     inner class ControlBridge {
         @JavascriptInterface
         fun collapse() { this@FloatWindow.collapse() }
+
+        @JavascriptInterface
+        fun exec(command: String) {
+            when (command) {
+                "wifi", "data", "airplane", "flashlight" -> {
+                    // 通过 Shell 执行系统命令
+                    val cmd = when (command) {
+                        "wifi" -> "svc wifi toggle"
+                        "data" -> "svc data toggle"
+                        "airplane" -> "settings put global airplane_mode_on " +
+                            if (android.provider.Settings.Global.getInt(
+                                    appContext.contentResolver,
+                                    android.provider.Settings.Global.AIRPLANE_MODE_ON, 0
+                                ) == 1) "0" else "1"
+                        "flashlight" -> "cmd flashlight set " +
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) "1" else "0"
+                        else -> ""
+                    }
+                    if (cmd.isNotBlank()) {
+                        Shell.execute(cmd) {}
+                    }
+                    if (command == "airplane") {
+                        // 需要发送广播让系统识别
+                        android.content.Intent(android.content.Intent.ACTION_AIRPLANE_MODE_CHANGED).also {
+                            it.putExtra("state", 
+                                android.provider.Settings.Global.getInt(
+                                    appContext.contentResolver,
+                                    android.provider.Settings.Global.AIRPLANE_MODE_ON, 0
+                                ) == 1)
+                        }
+                    }
+                }
+                "lock" -> {
+                    // 锁屏
+                    val km = appContext.getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                    if (km.isKeyguardSecure) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            try {
+                                val activity = appContext as? android.app.Activity
+                                activity?.finishAndRemoveTask()
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+                "settings" -> {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    try { appContext.startActivity(intent) } catch (_: Exception) {}
+                }
+                "playpause", "prev", "next" -> {
+                    // 模拟媒体键
+                    val action = when (command) {
+                        "playpause" -> android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY // 不精确
+                        else -> null
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun getBrightness(): Int {
+            return try {
+                android.provider.Settings.System.getInt(
+                    appContext.contentResolver,
+                    android.provider.Settings.System.SCREEN_BRIGHTNESS
+                )
+            } catch (_: Exception) { 128 }
+        }
+
+        @JavascriptInterface
+        fun getVolume(): Int {
+            return try {
+                val am = appContext.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+                val max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                val cur = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                if (max > 0) (cur * 100 / max) else 50
+            } catch (_: Exception) { 50 }
+        }
     }
 
     fun show(onTap: (() -> Unit)? = null, onResult: ((Boolean) -> Unit)? = null) {
