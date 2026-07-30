@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -28,12 +30,13 @@ class MainActivity : AppCompatActivity() {
         // 初始化权限管理
         permissions = Permissions(this)
 
-        // 沉浸模式
+        // ============ 沉浸模式（与原项目一致） ============
         try {
             WindowCompat.setDecorFitsSystemWindows(window, false)
             window.insetsController?.systemBarsBehavior =
                 WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } catch (_: Throwable) {}
+        hideSystemBars()
 
         webView = findViewById(R.id.webView)
         webView?.apply {
@@ -69,6 +72,37 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         webView?.destroy()
         super.onDestroy()
+    }
+
+    // ============ 沉浸模式：焦点变化时重新隐藏系统栏 ============
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemBars()
+        }
+    }
+
+    /**
+     * 隐藏状态栏和导航栏（真正全屏）
+     * 与原项目 Vibe Launcher 的 hideSystemBars() 一致
+     */
+    private fun hideSystemBars() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+        }
     }
 
     // ============ 权限回调 ============
