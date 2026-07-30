@@ -118,8 +118,8 @@ class FloatWindow(context: Context) {
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val dm = appContext.resources.displayMetrics
-        val barHeight = (dm.heightPixels * 0.1f).toInt()
+        val realHeight = getScreenHeight()
+        val barHeight = (realHeight * 0.1f).toInt()
 
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -137,6 +137,21 @@ class FloatWindow(context: Context) {
             gravity = Gravity.TOP or Gravity.START
             y = 0
             flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+        }
+    }
+
+    private fun getScreenHeight(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = android.util.DisplayMetrics()
+            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            wm.defaultDisplay.getRealMetrics(metrics)
+            metrics.heightPixels
+        } else {
+            @Suppress("DEPRECATION")
+            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val size = android.graphics.Point()
+            wm.defaultDisplay.getRealSize(size)
+            size.y
         }
     }
 
