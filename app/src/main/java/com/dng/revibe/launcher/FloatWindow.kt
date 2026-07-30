@@ -44,6 +44,38 @@ class FloatWindow(context: Context) {
     companion object {
         private const val EXPAND_THRESHOLD = 0.15f
         private const val COLLAPSE_THRESHOLD = 0.85f
+        private val CONTROL_CENTER_HTML = """
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Control Center</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,PingFang SC,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px 40px;display:flex;flex-direction:column}
+h1{font-size:22px;font-weight:300;letter-spacing:4px;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.card{background:rgba(255,255,255,0.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.06)}
+.card .icon{font-size:24px;margin-bottom:6px}
+.card .label{font-size:12px;opacity:0.6}
+.info{background:rgba(255,255,255,0.04);border-radius:14px;padding:14px 16px;margin-bottom:12px;font-size:13px;opacity:0.7;text-align:center;border:1px solid rgba(255,255,255,0.04)}
+</style>
+</head>
+<body>
+<h1>CONTROL CENTER</h1>
+<div class="info">Re-Vibe Launcher</div>
+<div class="grid">
+<div class="card"><div class="icon">[W]</div><div class="label">WiFi</div></div>
+<div class="card"><div class="icon">[V]</div><div class="label">Volume</div></div>
+<div class="card"><div class="icon">[B]</div><div class="label">Bright</div></div>
+<div class="card"><div class="icon">[R]</div><div class="label">Rotate</div></div>
+<div class="card"><div class="icon">[A]</div><div class="label">Airplane</div></div>
+<div class="card"><div class="icon">[F]</div><div class="label">Flash</div></div>
+</div>
+<div class="info">Swipe up to close</div>
+</body>
+</html>"""
     }
 
     // ==================== 公开接口 ====================
@@ -291,40 +323,6 @@ class FloatWindow(context: Context) {
     }
 
 
-    companion object {
-        private val CONTROL_CENTER_HTML = """
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<title>Control Center</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,Segoe UI,PingFang SC,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px 40px;display:flex;flex-direction:column}
-h1{font-size:22px;font-weight:300;letter-spacing:4px;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
-.card{background:rgba(255,255,255,0.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.06)}
-.card .icon{font-size:24px;margin-bottom:6px}
-.card .label{font-size:12px;opacity:0.6}
-.info{background:rgba(255,255,255,0.04);border-radius:14px;padding:14px 16px;margin-bottom:12px;font-size:13px;opacity:0.7;text-align:center;border:1px solid rgba(255,255,255,0.04)}
-</style>
-</head>
-<body>
-<h1>CONTROL CENTER</h1>
-<div class="info">Re-Vibe Launcher</div>
-<div class="grid">
-<div class="card"><div class="icon">[W]</div><div class="label">WiFi</div></div>
-<div class="card"><div class="icon">[V]</div><div class="label">Volume</div></div>
-<div class="card"><div class="icon">[B]</div><div class="label">Bright</div></div>
-<div class="card"><div class="icon">[R]</div><div class="label">Rotate</div></div>
-<div class="card"><div class="icon">[A]</div><div class="label">Airplane</div></div>
-<div class="card"><div class="icon">[F]</div><div class="label">Flash</div></div>
-</div>
-<div class="info">Swipe up to close</div>
-</body>
-</html>"""
-    }
 
     private fun cleanup() {
         rootView = null
