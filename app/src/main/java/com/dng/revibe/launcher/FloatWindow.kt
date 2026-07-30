@@ -48,18 +48,19 @@ class FloatWindow(context: Context) {
 
     // ==================== 公开接口 ====================
 
-    fun show(onTap: (() -> Unit)? = null) {
+    fun show(onTap: (() -> Unit)? = null, onResult: ((Boolean) -> Unit)? = null) {
         this.onTapCallback = onTap
-        if (rootView != null) { updateSize(); return }
+        if (rootView != null) { updateSize(); onResult?.invoke(true); return }
 
-        // JsBridge 在非 UI 线程调用，需切到主线程
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 showInternal()
+                onResult?.invoke(rootView != null)
             }
             return
         }
         showInternal()
+        onResult?.invoke(rootView != null)
     }
 
     private fun showInternal() {

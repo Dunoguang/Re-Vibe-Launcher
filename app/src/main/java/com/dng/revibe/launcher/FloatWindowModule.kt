@@ -27,13 +27,14 @@ class FloatWindowModule(private val bridge: JsBridge) {
             floatWindow = FloatWindow(context)
         }
 
-        floatWindow?.show {
-            callbackResult(callbackId, true, "用户点击关闭")
-        }
-
-        if (floatWindow?.isShowing != true) {
-            callbackResult(callbackId, false, "悬浮窗显示失败")
-        }
+        floatWindow?.show(
+            onTap = { callbackResult(callbackId, true, "用户点击关闭") },
+            onResult = { success ->
+                if (!success) {
+                    callbackResult(callbackId, false, "悬浮窗显示失败")
+                }
+            }
+        )
     }
 
     @JavascriptInterface
