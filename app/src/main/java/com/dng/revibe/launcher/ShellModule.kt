@@ -14,27 +14,39 @@ class ShellModule(private val bridge: JsBridge) {
     private val gson = Gson()
 
     /**
-     * 检测 root 是否可用
+     * 当前进程是否为 Shell 身份 (uid 2000)
      */
     @JavascriptInterface
-    fun isRootAvailable(): String {
-        val result = ShellAPI.isRootAvailable()
-        return gson.toJson(mapOf("available" to result))
+    fun isShellUid(): String {
+        return gson.toJson(mapOf("isShell" to ShellAPI.isShellUid()))
     }
 
     /**
-     * 检测普通 shell 是否可用
+     * 当前进程是否为 Root 身份 (uid 0)
      */
     @JavascriptInterface
-    fun isShellAvailable(): String {
-        val result = ShellAPI.isShellAvailable()
-        return gson.toJson(mapOf("available" to result))
+    fun isRootUid(): String {
+        return gson.toJson(mapOf("isRoot" to ShellAPI.isRootUid()))
+    }
+
+    /**
+     * Root 是否可用（su 二进制 + 可执行）
+     */
+    @JavascriptInterface
+    fun isRootAvailable(): String {
+        return gson.toJson(mapOf("available" to ShellAPI.isRootAvailable()))
+    }
+
+    /**
+     * sh 二进制是否可执行
+     */
+    @JavascriptInterface
+    fun hasShBinary(): String {
+        return gson.toJson(mapOf("available" to ShellAPI.hasShBinary()))
     }
 
     /**
      * 执行命令（自动选择 root → shell 回退）
-     * @param command   要执行的命令
-     * @param callbackId 回调 ID，结果通过 _onShellResult 返回
      */
     @JavascriptInterface
     fun execShell(command: String, callbackId: String) {

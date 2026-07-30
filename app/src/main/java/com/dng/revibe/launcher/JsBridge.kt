@@ -39,10 +39,16 @@ class JsBridge(context: Context, webView: WebView) {
 
     // ============ ShellModule 委托（root/su 执行） ============
     @JavascriptInterface
+    fun isShellUid(): String = shellModule.isShellUid()
+
+    @JavascriptInterface
+    fun isRootUid(): String = shellModule.isRootUid()
+
+    @JavascriptInterface
     fun isRootAvailable(): String = shellModule.isRootAvailable()
 
     @JavascriptInterface
-    fun isShellAvailable(): String = shellModule.isShellAvailable()
+    fun hasShBinary(): String = shellModule.hasShBinary()
 
     @JavascriptInterface
     fun shellExec(command: String, callbackId: String) = shellModule.execShell(command, callbackId)

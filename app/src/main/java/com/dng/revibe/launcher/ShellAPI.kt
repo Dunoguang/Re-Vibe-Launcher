@@ -1,23 +1,50 @@
 package com.dng.revibe.launcher
 
+import android.os.Process
 import android.util.Log
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.InputStreamReader
 
 /**
- * Shell API — 检测 root/shell 权限并提供命令执行能力
+ * Shell API — 检测 Android shell 身份 / root 权限并提供命令执行能力
  *
- * 检测策略（按优先级）：
- * 1. su 二进制是否存在且可执行
- * 2. 能否通过 su 执行命令 (id 返回 uid=0)
- * 3. 回退到普通 shell (sh)
+ * Android 权限层级（从低到高）：
+ * 1. 普通 App 进程        — uid ≥ 10000
+ * 2. Shell 用户           — uid = 2000 (Process.SHELL_UID)，ADB 或 shell 提权
+ * 3. Root 用户            — uid = 0，完整系统权限
  *
- * 返回的 CommandResult 定义在 ShizukuAPI 中
+ * "Shell 权限" 在 Android 语境中特指 uid == 2000，
+ * 此时进程拥有 shell 级别的系统 API 调用权（如 dump、statusbar 等）。
  */
 object ShellAPI {
 
     private const val TAG = "VibeShell"
+
+    // ==================== 身份检测 ====================
+
+    /**
+     * 当前进程是否运行在 Shell 用户下 (uid 2000)
+     * 这是 Android 定义的 "shell 权限" 标准。
+     */
+    fun isShellUid(): Boolean {
+        return Process.myUid() == Process.SHELL_UID
+    }
+
+    /**
+     * 当前进程是否运行在 Root 用户下 (uid 0)
+     */
+    fun isRootUid(): Boolean {
+        return Process.myUid() == 0
+    }
+
+    /** 是否有 Shell 或更高级别身份 */
+    fun isShellOrHigher(): Boolean {
+        val uid = Process.myUid()
+        return uid == Process.SHELL_UID || uid == 0
+    }
+
+    // ==================== Root 检测 ====================
 
     // 常见的 su 路径
     private val SU_PATHS = arrayOf(
@@ -70,8 +97,10 @@ object ShellAPI {
         return hasSuBinary() && checkRootAccess()
     }
 
-    /** 普通 shell 是否可用 */
-    fun isShellAvailable(): Boolean {
+    // ==================== Shell 执行环境检测 ====================
+
+    /** sh 二进制是否可执行（不一定需要 root） */
+    fun hasShBinary(): Boolean {
         return try {
             val process = Runtime.getRuntime().exec("sh")
             process.destroy()
@@ -80,6 +109,8 @@ object ShellAPI {
             false
         }
     }
+
+    // ==================== 命令执行 ====================
 
     /**
      * 通过 root/su 执行命令

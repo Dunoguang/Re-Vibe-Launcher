@@ -48,7 +48,7 @@ class PermissionModule(private val bridge: JsBridge) {
             "shizuku" to ShizukuAPI.isConnected(),
 
             // Shell / Root 权限
-            "shell" to ShellAPI.isShellAvailable(),
+            "shell" to ShellAPI.isShellUid(),
             "root" to ShellAPI.isRootAvailable(),
 
             // 通知监听
@@ -106,9 +106,9 @@ class PermissionModule(private val bridge: JsBridge) {
 
             // ---- Shell / Root 权限 ----
             "shell" -> {
-                val avail = ShellAPI.isShellAvailable()
+                val avail = ShellAPI.isShellUid()
                 callbackResult(callbackId, avail,
-                    if (avail) "Shell 可用" else "Shell 不可用（异常）")
+                    if (avail) "✅ 当前为 Shell 身份 (uid 2000)" else "ℹ️ 非 Shell 身份（普通 App 或 Root）")
             }
             "root" -> {
                 val avail = ShellAPI.isRootAvailable()
