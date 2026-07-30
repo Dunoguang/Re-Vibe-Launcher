@@ -334,27 +334,6 @@ class FloatWindow(context: Context) {
     private fun dp(value: Int): Int {
         return (value * appContext.resources.displayMetrics.density).toInt()
     }
-
-
-
-        val params = FrameLayout.LayoutParams(cardW, cardH)
-        val idx = -1 // 在循环中会被设置
-        card.layoutParams = params
-
-        val labelView = TextView(appContext).apply {
-            text = label
-            textSize = 14f
-            setTextColor(0xCCFFFFFF.toInt())
-            gravity = Gravity.CENTER
-        }
-        card.addView(labelView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
-
-        return card
-    }
-
     private fun getScreenHeight(): Int {
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
