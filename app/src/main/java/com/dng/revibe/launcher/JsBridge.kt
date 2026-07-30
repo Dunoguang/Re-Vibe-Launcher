@@ -41,7 +41,6 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isAdminActive(callbackId: String) = adminModule.isAdminActive(callbackId)
 
-    // ============ Android 身份检测 ============
     @JavascriptInterface
 
     // ============ JS 回调 ============

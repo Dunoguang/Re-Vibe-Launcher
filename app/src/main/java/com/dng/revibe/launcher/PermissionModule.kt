@@ -47,7 +47,6 @@ class PermissionModule(private val bridge: JsBridge) {
             // Shizuku
             "shizuku" to ShizukuAPI.isConnected(),
 
-
             // 通知监听
             "notificationListener" to isNotificationListenerEnabled(context),
 
