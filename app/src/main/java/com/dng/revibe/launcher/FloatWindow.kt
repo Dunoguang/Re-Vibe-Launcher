@@ -41,8 +41,8 @@ class FloatWindow(context: Context) {
     private var dragStartWindowH = 0
 
     companion object {
-        private const val EXPAND_THRESHOLD = 0.3f
-        private const val COLLAPSE_THRESHOLD = 0.7f
+        private const val EXPAND_THRESHOLD = 0.15f
+        private const val COLLAPSE_THRESHOLD = 0.85f
     }
 
     // ==================== 公开接口 ====================
