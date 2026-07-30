@@ -41,7 +41,8 @@ class FloatWindow(context: Context) {
     private var dragStartWindowH = 0
 
     companion object {
-        private const val SNAP_THRESHOLD = 0.3f
+        private const val EXPAND_THRESHOLD = 0.3f
+        private const val COLLAPSE_THRESHOLD = 0.7f
     }
 
     // ==================== 公开接口 ====================
@@ -202,10 +203,14 @@ class FloatWindow(context: Context) {
 
         val progress = 1f - (c.translationY / -contentH)
 
-        if (progress > SNAP_THRESHOLD) {
-            expand()
-        } else {
-            animateTo(-contentH.toFloat(), tabH, null)
+        when {
+            progress >= COLLAPSE_THRESHOLD -> expand()
+            progress <= EXPAND_THRESHOLD   -> animateTo(-contentH.toFloat(), tabH, null)
+            else -> {
+                // 中间区域 → 吸附到更近的状态
+                if (progress > 0.5f) expand()
+                else animateTo(-contentH.toFloat(), tabH, null)
+            }
         }
     }
 
