@@ -51,8 +51,18 @@ class FloatWindow(private val context: Context) {
         this.onTapCallback = onTap
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val dm = context.resources.displayMetrics
-        screenH = dm.heightPixels
+        val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display = wm.defaultDisplay
+        val realSize = android.graphics.Point()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = android.util.DisplayMetrics()
+            display.getRealMetrics(metrics)
+            screenH = metrics.heightPixels
+        } else {
+            @Suppress("DEPRECATION")
+            display.getRealSize(realSize)
+            screenH = realSize.y
+        }
         contentHeight = screenH
         tabHeight = (screenH * 0.1f).toInt()
         totalHeight = (screenH * 1.1f).toInt()
@@ -122,8 +132,7 @@ class FloatWindow(private val context: Context) {
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
