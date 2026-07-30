@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
+import android.webkit.JavascriptInterface
 import android.widget.FrameLayout
 import android.widget.TextView
 
@@ -20,87 +21,49 @@ class FloatWindow(context: Context) {
     private var container: FrameLayout? = null
     private var currentParams: WindowManager.LayoutParams? = null
     private var onTapCallback: (() -> Unit)? = null
-    private var screenH = 0
-    private var contentH = 0
-    private var tabH = 0
-    private var totalH = 0
+    private var screenH = 0; private var contentH = 0
+    private var tabH = 0; private var totalH = 0
     private var isDragging = false
-    private var dragStartY = 0f
-    private var dragStartTransY = 0f
-    private var dragStartWindowH = 0
-    private var lastDragDirection = 0
+    private var dragStartY = 0f; private var dragStartTransY = 0f
+    private var dragStartWindowH = 0; private var lastDragDirection = 0
 
     companion object {
         private const val EXPAND_THRESHOLD = 0.15f
         private const val COLLAPSE_THRESHOLD = 0.85f
-        private val CONTROL_CENTER_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset=UTF-8>
-<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,Segoe UI,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px;display:flex;flex-direction:column}
-h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
-.card{background:rgba(255,255,255,.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px)}
-.card .label{font-size:12px;opacity:.6}
-.info{background:rgba(255,255,255,.04);border-radius:14px;padding:14px 16px;font-size:13px;opacity:.7;text-align:center}
-</style>
-</head>
-<body>
-<h1>CONTROL CENTER</h1>
-<div class=info>Re-Vibe Launcher</div>
-<div class=grid>
-<div class=card><div class=label>WiFi</div></div>
-<div class=card><div class=label>Volume</div></div>
-<div class=card><div class=label>Bright</div></div>
-<div class=card><div class=label>Rotate</div></div>
-<div class=card><div class=label>Airplane</div></div>
-<div class=card><div class=label>Flash</div></div>
-</div>
-<div class=info>Swipe up to close</div>
-</body>
-</html>
-"""
     }
 
-    // ==================== 公开接口 ====================
+    /** WebView 的 JS 接口：上滑检测后调用收回 */
+    inner class ControlBridge {
+        @JavascriptInterface
+        fun collapse() { this@FloatWindow.collapse() }
+    }
 
     fun show(onTap: (() -> Unit)? = null, onResult: ((Boolean) -> Unit)? = null) {
         this.onTapCallback = onTap
         if (rootView != null) { updateSize(); onResult?.invoke(true); return }
-
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                showInternal()
-                onResult?.invoke(rootView != null)
+                showInternal(); onResult?.invoke(rootView != null)
             }
             return
         }
-        showInternal()
-        onResult?.invoke(rootView != null)
+        showInternal(); onResult?.invoke(rootView != null)
     }
 
     private fun showInternal() {
         windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         recalcDimensions()
 
+        // 拉手
         val tab = FrameLayout(appContext).apply {
             setBackgroundColor(0xCC2A1E3C.toInt())
-            val label = TextView(appContext).apply {
+            addView(TextView(appContext).apply {
                 text = "\u22EE \u4E0B\u62C9\u5C55\u5F00 \u22EE"
-                textSize = 13f
-                setTextColor(0xAAFFFFFF.toInt())
-                gravity = Gravity.CENTER
-            }
-            addView(label, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ))
+                textSize = 13f; setTextColor(0xAAFFFFFF.toInt()); gravity = Gravity.CENTER
+            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
 
+        // 内容区 — WebView + JS 上滑检测
         val contentArea = FrameLayout(appContext).apply {
             setBackgroundColor(0xE61A1A2E.toInt())
             val webView = android.webkit.WebView(appContext).apply {
@@ -109,73 +72,29 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 setBackgroundColor(0xFF1A1A2E.toInt())
-                loadDataWithBaseURL(null, CONTROL_CENTER_HTML, "text/html", "UTF-8", null)
+                addJavascriptInterface(ControlBridge(), "FloatControl")
+                // 内嵌 HTML + 上滑检测 JS
+                loadDataWithBaseURL(null, controlCenterHtml(), "text/html", "UTF-8", null)
             }
-            addView(webView, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ))
+            addView(webView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
 
         container = FrameLayout(appContext).apply {
-            addView(contentArea, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, contentH
-            ).apply { gravity = Gravity.TOP })
-            addView(tab, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, tabH
-            ).apply { gravity = Gravity.BOTTOM })
+            addView(contentArea, FrameLayout.LayoutParams(MATCH_PARENT, contentH).apply { gravity = Gravity.TOP })
+            addView(tab, FrameLayout.LayoutParams(MATCH_PARENT, tabH).apply { gravity = Gravity.BOTTOM })
             translationY = -contentH.toFloat()
         }
 
-        rootView = object : FrameLayout(appContext) {
-            private var touchStartY = 0f
-            private var intercepting = false
-
-            override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-                when (ev.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        touchStartY = ev.rawY
-                        intercepting = false
-                        return false
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        if (!intercepting) {
-                            val dy = kotlin.math.abs(ev.rawY - touchStartY)
-                            if (dy > 20f) {
-                                intercepting = true
-                                val down = MotionEvent.obtain(ev)
-                                down.action = MotionEvent.ACTION_DOWN
-                                onTouchEvent(down)
-                                return true
-                            }
-                        }
-                        return intercepting
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        val ret = intercepting
-                        intercepting = false
-                        return ret
-                    }
-                }
-                return false
-            }
-        }.apply {
+        rootView = FrameLayout(appContext).apply {
             setBackgroundColor(0x00000000.toInt())
-            addView(container!!, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, totalH
-            ))
+            addView(container!!, FrameLayout.LayoutParams(MATCH_PARENT, totalH))
             setOnTouchListener(touchListener)
         }
 
         currentParams = buildParams(tabH)
-
-        try {
-            windowManager?.addView(rootView, currentParams!!)
-        } catch (e: SecurityException) {
-            cleanup()
-        } catch (e: Exception) {
-            cleanup()
-        }
+        try { windowManager?.addView(rootView, currentParams!!) }
+        catch (e: SecurityException) { cleanup() }
+        catch (e: Exception) { cleanup() }
     }
 
     fun hide() {
@@ -203,22 +122,14 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
 
     private fun updateSizeInternal() {
         recalcDimensions()
-        val p = currentParams ?: return
-        val v = rootView ?: return
-        val wm = windowManager ?: return
+        val p = currentParams ?: return; val v = rootView ?: return; val wm = windowManager ?: return
         val newP = buildParams(if (p.height > tabH) screenH else tabH)
-        p.width = newP.width
-        p.height = newP.height
+        p.width = newP.width; p.height = newP.height
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
     }
 
-    fun expand() {
-        animateTo(0f, screenH, null)
-    }
-
-    fun collapse() {
-        animateTo(-contentH.toFloat(), tabH, null)
-    }
+    fun expand() { animateTo(0f, screenH, null) }
+    fun collapse() { animateTo(-contentH.toFloat(), tabH, null) }
 
     // ==================== 手势 ====================
 
@@ -233,47 +144,33 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
             }
             MotionEvent.ACTION_MOVE -> {
                 if (!isDragging) return@OnTouchListener false
-                val dy = event.rawY - dragStartY
-                applyDrag(dy)
-                true
+                applyDrag(event.rawY - dragStartY); true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (!isDragging) return@OnTouchListener false
-                isDragging = false
-                snapDrag()
-                true
+                isDragging = false; snapDrag(); true
             }
             else -> false
         }
     }
 
     private fun applyDrag(dy: Float) {
-        val c = container ?: return
-        val p = currentParams ?: return
-        val v = rootView ?: return
-        val wm = windowManager ?: return
+        val c = container ?: return; val p = currentParams ?: return
+        val v = rootView ?: return; val wm = windowManager ?: return
         lastDragDirection = if (dy > 0) 1 else -1
         val transY = (dragStartTransY + dy).coerceIn(-contentH.toFloat(), 0f)
         val progress = 1f - (transY / -contentH)
-        val winH = (tabH + progress * (screenH - tabH)).toInt()
+        p.height = (tabH + progress * (screenH - tabH)).toInt()
         c.translationY = transY
-        p.height = winH
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
     }
 
     private fun snapDrag() {
-        val c = container ?: return
-        val p = currentParams ?: return
-        val dragDistance = kotlin.math.abs(c.translationY - dragStartTransY)
-
-        if (dragDistance < 20f && p.height <= tabH + 20) {
-            hide()
-            onTapCallback?.invoke()
-            return
+        val c = container ?: return; val p = currentParams ?: return
+        if (kotlin.math.abs(c.translationY - dragStartTransY) < 20f && p.height <= tabH + 20) {
+            hide(); onTapCallback?.invoke(); return
         }
-
         val progress = 1f - (c.translationY / -contentH)
-
         if (lastDragDirection > 0) {
             if (progress > EXPAND_THRESHOLD) expand()
             else animateTo(-contentH.toFloat(), tabH, null)
@@ -286,16 +183,11 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
     // ==================== 动画 ====================
 
     private fun animateTo(targetTransY: Float, targetWindowH: Int, onEnd: (() -> Unit)? = null) {
-        val c = container ?: return
-        val p = currentParams ?: return
-        val v = rootView ?: return
-        val wm = windowManager ?: return
-        val startTransY = c.translationY
-        val startWinH = p.height
-
+        val c = container ?: return; val p = currentParams ?: return
+        val v = rootView ?: return; val wm = windowManager ?: return
+        val startTransY = c.translationY; val startWinH = p.height
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 250
-            interpolator = DecelerateInterpolator()
+            duration = 250; interpolator = DecelerateInterpolator()
             addUpdateListener { anim ->
                 val f = anim.animatedFraction
                 c.translationY = startTransY + (targetTransY - startTransY) * f
@@ -303,9 +195,7 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
                 try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    onEnd?.invoke()
-                }
+                override fun onAnimationEnd(animation: android.animation.Animator) { onEnd?.invoke() }
             })
         }.start()
     }
@@ -314,51 +204,79 @@ h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;backgroun
 
     private fun recalcDimensions() {
         screenH = getScreenHeight()
-        tabH = (screenH * 0.1f).toInt()
-        contentH = screenH
-        totalH = (screenH * 1.1f).toInt()
+        tabH = (screenH * 0.1f).toInt(); contentH = screenH; totalH = (screenH * 1.1f).toInt()
     }
 
-    private fun buildParams(height: Int): WindowManager.LayoutParams {
-        return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            height,
-            @Suppress("DEPRECATION")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            y = 0
-            @Suppress("DEPRECATION")
-            flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-        }
+    private fun buildParams(height: Int) = WindowManager.LayoutParams(
+        MATCH_PARENT, height,
+        @Suppress("DEPRECATION") if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else WindowManager.LayoutParams.TYPE_PHONE,
+        FLAG_NOT_FOCUSABLE or FLAG_LAYOUT_IN_SCREEN or FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START; y = 0
+        @Suppress("DEPRECATION") flags = flags or FLAG_LAYOUT_INSET_DECOR
     }
 
     @Suppress("DEPRECATION")
     private fun getScreenHeight(): Int {
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val m = android.util.DisplayMetrics()
-            wm.defaultDisplay.getRealMetrics(m)
-            m.heightPixels
+            val m = android.util.DisplayMetrics(); wm.defaultDisplay.getRealMetrics(m); m.heightPixels
         } else {
-            val pt = android.graphics.Point()
-            wm.defaultDisplay.getRealSize(pt)
-            pt.y
+            val pt = android.graphics.Point(); wm.defaultDisplay.getRealSize(pt); pt.y
         }
     }
 
     private fun cleanup() {
-        rootView = null
-        container = null
-        currentParams = null
-        onTapCallback = null
-        isDragging = false
+        rootView = null; container = null; currentParams = null
+        onTapCallback = null; isDragging = false
     }
+
+    /** 生成控制中心 HTML + 上滑检测 JS */
+    private fun controlCenterHtml(): String = """<!DOCTYPE html>
+<html><head><meta charset=UTF-8>
+<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,Segoe UI,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px;display:flex;flex-direction:column}
+h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.card{background:rgba(255,255,255,.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px)}
+.card .label{font-size:12px;opacity:.6}
+.info{background:rgba(255,255,255,.04);border-radius:14px;padding:14px 16px;font-size:13px;opacity:.7;text-align:center}
+</style></head>
+<body>
+<h1>CONTROL CENTER</h1>
+<div class=info>Re-Vibe Launcher</div>
+<div class=grid>
+<div class=card><div class=label>WiFi</div></div>
+<div class=card><div class=label>Volume</div></div>
+<div class=card><div class=label>Bright</div></div>
+<div class=card><div class=label>Rotate</div></div>
+<div class=card><div class=label>Airplane</div></div>
+<div class=card><div class=label>Flash</div></div>
+</div>
+<div class=info>Swipe up to close</div>
+<script>
+let touchStartY = 0;
+let touched = false;
+document.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+    touched = true;
+}, {passive:true});
+document.addEventListener('touchmove', function(e) {
+    // Swallow to prevent page scroll
+}, {passive:true});
+document.addEventListener('touchend', function(e) {
+    if (!touched) return;
+    touched = false;
+    var dy = e.changedTouches[0].clientY - touchStartY;
+    if (dy < -window.innerHeight * 0.3) {
+        FloatControl.collapse();
+    }
+}, {passive:true});
+</script>
+</body></html>"""
 }
