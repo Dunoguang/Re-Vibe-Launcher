@@ -266,19 +266,19 @@ class FloatWindow(context: Context) {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             y = 0
+            @Suppress("DEPRECATION")
             flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun getScreenHeight(): Int {
+        val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val m = android.util.DisplayMetrics()
-            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             wm.defaultDisplay.getRealMetrics(m)
             m.heightPixels
         } else {
-            @Suppress("DEPRECATION")
-            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val pt = android.graphics.Point()
             wm.defaultDisplay.getRealSize(pt)
             pt.y
