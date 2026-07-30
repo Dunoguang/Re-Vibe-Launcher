@@ -124,6 +124,7 @@ class FloatWindow(context: Context) {
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             barHeight,
+            @Suppress("DEPRECATION")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
