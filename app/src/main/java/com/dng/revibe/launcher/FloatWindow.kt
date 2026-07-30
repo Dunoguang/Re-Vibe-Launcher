@@ -13,11 +13,14 @@ import android.graphics.Color
 /**
  * 悬浮窗管理
  *
- * 整个面板比屏幕高 10%，默认只露出底部 10% 的「拉手」在屏幕顶部。
- * 其余 100% 内容隐藏在屏幕上方，后续可通过下拉手势展示完整面板。
+ * 面板比屏幕高 10%，默认只露出底部 10% 的「拉手」在屏幕顶部。
  *
- * 宽 = 100% 屏幕宽，高 = 屏幕高 + 10%
- * 横屏竖屏均正常工作（每次 show 时重新计算）
+ * 实现方式：
+ * - 窗口 = MATCH_PARENT × MATCH_PARENT（全屏），位置在屏幕内
+ * - 窗口根布局内嵌一个总高 = 屏幕高 + 10% 的容器
+ * - 该容器 translationY = -屏幕高 → 仅底部拉手区可见
+ *
+ * 横屏竖屏每次 show() 重新计算尺寸。
  */
 class FloatWindow(private val context: Context) {
 
@@ -25,10 +28,6 @@ class FloatWindow(private val context: Context) {
     private var floatView: View? = null
     private var onTapCallback: (() -> Unit)? = null
 
-    /**
-     * 显示悬浮窗
-     * @param onTap 点击可见区域时的回调（后续会改为下拉手势）
-     */
     fun show(onTap: (() -> Unit)? = null) {
         hide()
 
@@ -36,75 +35,79 @@ class FloatWindow(private val context: Context) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         val displayMetrics = context.resources.displayMetrics
-        val screenW = displayMetrics.widthPixels
         val screenH = displayMetrics.heightPixels
 
-        // 总高度 = 屏幕高度 + 10% (= 多出 10% 作为可见拉手)
+        // 面板总高 = 屏幕高 + 10%
         val totalHeight = (screenH * 1.1f).toInt()
-        // 可见拉手区域的高度 = 10% 屏幕高
+        // 拉手高 = 10%
         val tabHeight = (screenH * 0.1f).toInt()
-        // 隐藏的内容区高度 = 100% 屏幕高
+        // 内容区高 = 100%
         val contentHeight = screenH
 
-        // 创建总面板
-        val panel = FrameLayout(context).apply {
-            setBackgroundColor(Color.TRANSPARENT) // 整体透明
-
-            // ---- 内容区（占 100% 屏幕高，默认在屏幕上方隐藏） ----
-            val contentArea = FrameLayout(context).apply {
-                setBackgroundColor(0xE61A1A2E.toInt()) // 深色背景
-
-                val label = TextView(context).apply {
-                    text = "下拉查看更多内容"
-                    textSize = 16f
-                    setTextColor(Color.WHITE)
-                    gravity = Gravity.CENTER
-                }
-                addView(label, FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                ))
+        // ---- 拉手区 ----
+        val tab = FrameLayout(context).apply {
+            setBackgroundColor(0xCC2A1E3C.toInt())
+            val handleLabel = TextView(context).apply {
+                text = "⋮ 点击关闭 ⋮"
+                textSize = 13f
+                setTextColor(0xAAFFFFFF.toInt())
+                gravity = Gravity.CENTER
             }
+            addView(handleLabel, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+            setOnClickListener {
+                hide()
+                onTapCallback?.invoke()
+            }
+        }
+
+        // ---- 内容区 ----
+        val contentArea = FrameLayout(context).apply {
+            setBackgroundColor(0xE61A1A2E.toInt())
+            val label = TextView(context).apply {
+                text = "下拉查看更多内容"
+                textSize = 16f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+            }
+            addView(label, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+        }
+
+        // ---- 总容器（内容区在上，拉手区在下，整体上移） ----
+        val container = FrameLayout(context).apply {
             addView(contentArea, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 contentHeight
-            ))
+            ).apply { gravity = Gravity.TOP })
 
-            // ---- 拉手区（占 10% 屏幕高，默认可见） ----
-            val tab = FrameLayout(context).apply {
-                setBackgroundColor(0xCC2A1E3C.toInt()) // 半透明深紫
-
-                val handleLabel = TextView(context).apply {
-                    text = "⋮ 点击关闭 ⋮"
-                    textSize = 13f
-                    setTextColor(0xAAFFFFFF.toInt())
-                    gravity = Gravity.CENTER
-                }
-                addView(handleLabel, FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                ))
-
-                // 点击关闭
-                setOnClickListener {
-                    hide()
-                    onTapCallback?.invoke()
-                }
-            }
-            // 拉手区定位在面板底部
-            val tabLayoutParams = FrameLayout.LayoutParams(
+            addView(tab, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 tabHeight
-            ).apply {
-                gravity = Gravity.BOTTOM
-            }
-            addView(tab, tabLayoutParams)
+            ).apply { gravity = Gravity.BOTTOM })
+
+            // 上移整个容器，只露出底部拉手在屏幕可见区域
+            translationY = -contentHeight.toFloat()
+        }
+
+        // ---- 窗口根布局（全屏，不做偏移） ----
+        val root = FrameLayout(context).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            // 容器比窗口高，超出部分被窗口裁剪
+            addView(container, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                totalHeight
+            ))
         }
 
         // ---- 窗口参数 ----
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,  // 宽 100%
-            totalHeight,                               // 高 = 屏幕高 + 10%
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
@@ -115,14 +118,12 @@ class FloatWindow(private val context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // y = -屏幕高度 → 面板上移，只露出底部拉手
-            y = -screenH
-            flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+            y = 0
         }
 
         try {
-            windowManager?.addView(panel, params)
-            floatView = panel
+            windowManager?.addView(root, params)
+            floatView = root
         } catch (e: SecurityException) {
             onTapCallback = null
         } catch (e: Exception) {
