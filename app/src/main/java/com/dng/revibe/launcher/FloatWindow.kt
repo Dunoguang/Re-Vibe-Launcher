@@ -273,7 +273,7 @@ document.addEventListener('touchend', function(e) {
     if (!touched) return;
     touched = false;
     var dy = e.changedTouches[0].clientY - touchStartY;
-    if (dy < -window.innerHeight * 0.3) {
+    if (dy < -window.innerHeight * 0.15) {
         FloatControl.collapse();
     }
 }, {passive:true});
