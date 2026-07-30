@@ -12,6 +12,8 @@ import java.io.InputStreamReader
  * 1. su 二进制是否存在且可执行
  * 2. 能否通过 su 执行命令 (id 返回 uid=0)
  * 3. 回退到普通 shell (sh)
+ *
+ * 返回的 CommandResult 定义在 ShizukuAPI 中
  */
 object ShellAPI {
 
@@ -81,11 +83,10 @@ object ShellAPI {
 
     /**
      * 通过 root/su 执行命令
-     * @return CommandResult
      */
-    fun execViaRoot(command: String): CommandResult {
-        if (command.isBlank()) return CommandResult("", "Command is empty", -1)
-        if (!isRootAvailable()) return CommandResult("", "Root is not available", -1)
+    fun execViaRoot(command: String): ShizukuAPI.CommandResult {
+        if (command.isBlank()) return ShizukuAPI.CommandResult("", "Command is empty", -1)
+        if (!isRootAvailable()) return ShizukuAPI.CommandResult("", "Root is not available", -1)
 
         return try {
             val process = Runtime.getRuntime().exec("su")
@@ -101,17 +102,17 @@ object ShellAPI {
             val stderr = stderrReader.readText().trim()
             val statusCode = process.waitFor()
 
-            CommandResult(stdout, stderr, statusCode)
+            ShizukuAPI.CommandResult(stdout, stderr, statusCode)
         } catch (e: Exception) {
-            CommandResult("", e.message ?: "Unknown error", -1)
+            ShizukuAPI.CommandResult("", e.message ?: "Unknown error", -1)
         }
     }
 
     /**
      * 通过普通 shell 执行命令（无需 root）
      */
-    fun execViaShell(command: String): CommandResult {
-        if (command.isBlank()) return CommandResult("", "Command is empty", -1)
+    fun execViaShell(command: String): ShizukuAPI.CommandResult {
+        if (command.isBlank()) return ShizukuAPI.CommandResult("", "Command is empty", -1)
 
         return try {
             val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
@@ -122,16 +123,16 @@ object ShellAPI {
             val stdout = stdoutReader.readText().trim()
             val stderr = stderrReader.readText().trim()
 
-            CommandResult(stdout, stderr, statusCode)
+            ShizukuAPI.CommandResult(stdout, stderr, statusCode)
         } catch (e: Exception) {
-            CommandResult("", e.message ?: "Unknown error", -1)
+            ShizukuAPI.CommandResult("", e.message ?: "Unknown error", -1)
         }
     }
 
     /**
      * 优先用 root，回退到普通 shell
      */
-    fun exec(command: String): CommandResult {
+    fun exec(command: String): ShizukuAPI.CommandResult {
         return if (isRootAvailable()) {
             execViaRoot(command)
         } else {
