@@ -56,7 +56,7 @@ class FloatWindow(context: Context) {
 
         // 拉手
         val tab = FrameLayout(appContext).apply {
-            setBackgroundColor(0xCC2A1E3C.toInt())
+            setBackgroundColor(0x00000000.toInt())
             addView(TextView(appContext).apply {
                 text = "\u22EE \u4E0B\u62C9\u5C55\u5F00 \u22EE"
                 textSize = 13f; setTextColor(0xAAFFFFFF.toInt()); gravity = Gravity.CENTER
