@@ -130,11 +130,13 @@ class FloatWindow(context: Context) {
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             y = 0
+            flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
         }
     }
 
