@@ -15,7 +15,7 @@ class FloatWindowModule(private val bridge: JsBridge) {
 
     /**
      * 显示悬浮窗
-     * @param callbackId 回调 ID，点击拉手关闭时通过 _onFloatWindowTap 返回
+     * @param callbackId 回调 ID，点击悬浮窗时通过 _onFloatWindowTap 返回
      */
     @JavascriptInterface
     fun show(callbackId: String) {
@@ -31,10 +31,11 @@ class FloatWindowModule(private val bridge: JsBridge) {
             return
         }
 
+        // 确保旧实例被清理
         floatWindow?.hide()
         floatWindow = FloatWindow(context)
 
-        floatWindow?.show {
+        floatWindow?.show(message = "点击关闭悬浮窗") {
             val result = mapOf(
                 "callbackId" to callbackId,
                 "success" to true,
@@ -43,6 +44,7 @@ class FloatWindowModule(private val bridge: JsBridge) {
             bridge.callback("_onFloatWindowTap", gson.toJson(result))
         }
 
+        // 如果 show 失败（权限被拒等），立即回调
         if (floatWindow?.isShowing != true) {
             val result = mapOf(
                 "callbackId" to callbackId,
@@ -53,12 +55,18 @@ class FloatWindowModule(private val bridge: JsBridge) {
         }
     }
 
+    /**
+     * 隐藏悬浮窗
+     */
     @JavascriptInterface
     fun hide() {
         floatWindow?.hide()
         floatWindow = null
     }
 
+    /**
+     * 悬浮窗是否正在显示
+     */
     @JavascriptInterface
     fun isShowing(): String {
         return gson.toJson(mapOf("showing" to (floatWindow?.isShowing == true)))
