@@ -36,6 +36,7 @@ class FloatWindow(context: Context) {
 
     // 手势
     private var isDragging = false
+    private var lastDragDirection = 0  // 1=向下(展开)  -1=向上(收回)
     private var dragStartY = 0f
     private var dragStartTransY = 0f
     private var dragStartWindowH = 0
@@ -175,6 +176,9 @@ class FloatWindow(context: Context) {
         val v = rootView ?: return
         val wm = windowManager ?: return
 
+        // 记录拖动方向
+        lastDragDirection = if (dy > 0) 1 else -1
+
         // translationY 范围: -contentH ~ 0
         val transY = (dragStartTransY + dy).coerceIn(-contentH.toFloat(), 0f)
         val progress = 1f - (transY / -contentH) // 0~1
@@ -195,7 +199,6 @@ class FloatWindow(context: Context) {
         val dragDistance = kotlin.math.abs(c.translationY - dragStartTransY)
 
         if (dragDistance < 20f && p.height <= tabH + 20) {
-            // 纯粹点击 → 关闭悬浮窗
             hide()
             onTapCallback?.invoke()
             return
@@ -203,14 +206,14 @@ class FloatWindow(context: Context) {
 
         val progress = 1f - (c.translationY / -contentH)
 
-        when {
-            progress >= COLLAPSE_THRESHOLD -> expand()
-            progress <= EXPAND_THRESHOLD   -> animateTo(-contentH.toFloat(), tabH, null)
-            else -> {
-                // 中间区域 → 吸附到更近的状态
-                if (progress > 0.5f) expand()
-                else animateTo(-contentH.toFloat(), tabH, null)
-            }
+        if (lastDragDirection > 0) {
+            // 展开方向：只要拉了超过 15% 就展开
+            if (progress > 0.15f) expand()
+            else animateTo(-contentH.toFloat(), tabH, null)
+        } else {
+            // 收回方向：只要隐藏了超过 15% (progress < 85%) 就收回
+            if (progress < 0.85f) animateTo(-contentH.toFloat(), tabH, null)
+            else expand()
         }
     }
 
