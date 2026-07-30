@@ -2,63 +2,222 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Re-Vibe Launcher</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Re-Vibe Launcher 权限检查</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .container {
-            text-align: center;
-            animation: fadeIn 2s ease;
+            color: #fff;
+            min-height: 100vh;
+            padding: 24px 16px 40px;
+            user-select: none;
+            -webkit-user-select: none;
         }
         h1 {
-            font-size: 2.5rem;
+            font-size: 1.6rem;
             font-weight: 300;
-            letter-spacing: 4px;
-            margin-bottom: 1rem;
+            letter-spacing: 2px;
+            text-align: center;
+            margin-bottom: 4px;
             background: linear-gradient(90deg, #ff6fd8, #ffb86c);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        p {
-            font-size: 1.1rem;
-            opacity: 0.7;
-            font-weight: 300;
-        }
-        .version {
-            margin-top: 2rem;
+        .subtitle {
+            text-align: center;
             font-size: 0.8rem;
-            opacity: 0.3;
+            opacity: 0.4;
+            margin-bottom: 24px;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
+        .section {
+            background: rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.4;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .perm-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .perm-item:last-child { border-bottom: none; }
+        .perm-name {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .perm-name .desc {
+            font-size: 0.7rem;
+            opacity: 0.35;
+            display: block;
+            margin-top: 1px;
+        }
+        .perm-status {
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .granted { background: rgba(52,199,89,0.2); color: #34c759; }
+        .denied  { background: rgba(255,69,58,0.2); color: #ff453a; }
+        .unknown { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.3); }
+
+        .refresh-btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 16px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: background 0.2s;
+        }
+        .refresh-btn:active { background: rgba(255,255,255,0.18); }
+
+        .badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .badge-all { background: rgba(52,199,89,0.15); color: #34c759; }
+        .badge-partial { background: rgba(255,204,0,0.15); color: #ffcc00; }
+
+        .summary {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            opacity: 0.6;
+        }
+        .summary strong {
+            opacity: 1;
+            color: #ffb86c;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>✨ Re-Vibe Launcher</h1>
-        <p>Hello World! 重新出发 🚀</p>
-        <div class="version" id="version">Loading...</div>
-    </div>
+    <h1>✨ Re-Vibe Launcher</h1>
+    <p class="subtitle">权限状态检查</p>
+
+    <div class="summary" id="summary">检查中...</div>
+
+    <div id="perm-container"></div>
+
+    <button class="refresh-btn" onclick="checkPermissions()">🔄 重新检查</button>
+
     <script>
-        document.getElementById('version').textContent = 'v' + new Date().toISOString().slice(0, 10);
+    const PERM_GROUPS = {
+        '运行时权限': [
+            { key: 'locationFine',     name: '精确位置',        desc: 'ACCESS_FINE_LOCATION' },
+            { key: 'locationCoarse',   name: '粗略位置',        desc: 'ACCESS_COARSE_LOCATION' },
+            { key: 'phoneState',       name: '读取电话状态',    desc: 'READ_PHONE_STATE' },
+            { key: 'camera',           name: '相机',            desc: 'CAMERA' },
+            { key: 'notifications',    name: '通知',            desc: 'POST_NOTIFICATIONS' }
+        ],
+        '特殊权限': [
+            { key: 'writeSettings',    name: '修改系统设置',    desc: 'WRITE_SETTINGS' },
+            { key: 'overlay',          name: '悬浮窗',          desc: 'SYSTEM_ALERT_WINDOW' },
+            { key: 'notificationListener', name: '通知监听',    desc: 'BIND_NOTIFICATION_LISTENER' }
+        ],
+        '系统功能': [
+            { key: 'deviceAdmin',      name: '设备管理员',      desc: '锁屏权限' },
+            { key: 'shizuku',          name: 'Shizuku',         desc: 'Shell 执行权限' }
+        ],
+        'WiFi 权限': [
+            { key: 'wifiState',        name: 'WiFi 状态',       desc: 'ACCESS_WIFI_STATE' },
+            { key: 'wifiChange',       name: '修改 WiFi',       desc: 'CHANGE_WIFI_STATE' },
+            { key: 'networkState',     name: '网络状态',        desc: 'ACCESS_NETWORK_STATE' }
+        ]
+    };
+
+    let lastStatus = {};
+
+    function checkPermissions() {
+        document.getElementById('summary').textContent = '⏳ 查询中...';
+        const container = document.getElementById('perm-container');
+        container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.3;">正在获取权限状态...</div>';
+
+        try {
+            const json = NativeBridge.getPermissionStatus();
+            lastStatus = JSON.parse(json);
+            renderPermissions(lastStatus);
+        } catch(e) {
+            // NativeBridge 不可用（开发环境）
+            container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.3;">⚠️ NativeBridge 不可用<br><span style="font-size:0.7rem;">请在真机或模拟器中运行</span></div>';
+            document.getElementById('summary').textContent = '❌ 桥接未连接';
+        }
+    }
+
+    function renderPermissions(status) {
+        const container = document.getElementById('perm-container');
+        let html = '';
+        let granted = 0, total = 0;
+
+        for (const [groupName, perms] of Object.entries(PERM_GROUPS)) {
+            html += '<div class="section">';
+            html += '<div class="section-title">' + groupName + '</div>';
+
+            for (const p of perms) {
+                total++;
+                const val = status[p.key];
+                const isGranted = val === true;
+                if (isGranted) granted++;
+
+                const statusClass = val === true ? 'granted' : (val === false ? 'denied' : 'unknown');
+                const statusText = val === true ? '✅ 已授权' : (val === false ? '❌ 未授权' : '— 未知');
+
+                html += '<div class="perm-item">';
+                html += '<div class="perm-name">' + p.name + '<span class="desc">' + p.desc + '</span></div>';
+                html += '<div class="perm-status ' + statusClass + '">' + statusText + '</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+
+        // 摘要
+        const pct = total > 0 ? Math.round(granted / total * 100) : 0;
+        const summary = document.getElementById('summary');
+        if (granted === total) {
+            summary.innerHTML = '🎉 所有 <strong>' + total + '</strong> 项权限已全部授权';
+        } else {
+            summary.innerHTML = '📋 已授权 <strong>' + granted + '</strong> / ' + total +
+                ' 项（<strong>' + pct + '%</strong>）' +
+                ' · 未授权 <strong style="color:#ff453a;">' + (total - granted) + '</strong> 项';
+        }
+    }
+
+    // 页面加载后自动检查
+    document.addEventListener('DOMContentLoaded', function() {
+        // 给 NativeBridge 一点初始化时间
+        setTimeout(checkPermissions, 300);
+    });
     </script>
 </body>
 </html>
