@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Re-Vibe Launcher 权限检查</title>
+    <title>Re-Vibe Launcher 权限管理</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -53,13 +53,28 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 10px 0;
             border-bottom: 1px solid rgba(255,255,255,0.04);
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            border-radius: 6px;
+            margin: 0 -8px;
+            padding-left: 8px;
+            padding-right: 8px;
         }
         .perm-item:last-child { border-bottom: none; }
+        .perm-item:active {
+            background: rgba(255,255,255,0.08);
+            transform: scale(0.98);
+        }
+        .perm-item.loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
         .perm-name {
             font-size: 0.9rem;
             opacity: 0.8;
+            flex: 1;
         }
         .perm-name .desc {
             font-size: 0.7rem;
@@ -73,10 +88,14 @@
             border-radius: 20px;
             font-weight: 600;
             flex-shrink: 0;
+            transition: all 0.2s;
+            min-width: 70px;
+            text-align: center;
         }
         .granted { background: rgba(52,199,89,0.2); color: #34c759; }
         .denied  { background: rgba(255,69,58,0.2); color: #ff453a; }
         .unknown { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.3); }
+        .pending { background: rgba(255,204,0,0.2); color: #ffcc00; }
 
         .refresh-btn {
             display: block;
@@ -118,19 +137,60 @@
             opacity: 1;
             color: #ffb86c;
         }
+
+        /* Toast 消息 */
+        #toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 999;
+            max-width: 85vw;
+            text-align: center;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        #toast.success { border-color: rgba(52,199,89,0.4); }
+        #toast.error { border-color: rgba(255,69,58,0.4); }
+
+        /* 点击提示 */
+        .click-hint {
+            font-size: 0.65rem;
+            opacity: 0.2;
+            text-align: center;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <h1>✨ Re-Vibe Launcher</h1>
-    <p class="subtitle">权限状态检查</p>
+    <p class="subtitle">权限管理 · 点击即可申请授权</p>
 
     <div class="summary" id="summary">检查中...</div>
 
     <div id="perm-container"></div>
 
-    <button class="refresh-btn" onclick="checkPermissions()">🔄 重新检查</button>
+    <p class="click-hint">👆 点击任意未授权项进行授权</p>
+
+    <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
+
+    <div id="toast"></div>
 
     <script>
+    // ===================== 权限定义 =====================
     const PERM_GROUPS = {
         '运行时权限': [
             { key: 'locationFine',     name: '精确位置',        desc: 'ACCESS_FINE_LOCATION' },
@@ -156,7 +216,69 @@
     };
 
     let lastStatus = {};
+    let callbackCounter = 0;
+    // 正在请求中的权限 key 集合
+    const pendingKeys = new Set();
 
+    // ===================== 回调接收（由 NativeBridge 调用） =====================
+    window._onPermissionResult = function(data) {
+        console.log('[权限回调]', JSON.stringify(data));
+        const { callbackId, success, message } = data;
+
+        // 根据 callbackId 找到对应的 permKey（从 data-permkey 属性找，但简单起见从 pendingKeys 移除）
+        // 由于 callbackId 是递增的，我们标记所有 pending 状态重新查询
+        // 最简单的办法：清空 pending，重新检查
+        pendingKeys.clear();
+        showToast(message, success ? 'success' : 'error');
+        // 延迟一下再刷新，给系统一点时间更新状态
+        setTimeout(checkPermissions, 500);
+    };
+
+    // ===================== 显示 Toast =====================
+    let toastTimer = null;
+    function showToast(msg, type) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = 'show ' + (type || '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+    }
+
+    // ===================== 请求权限 =====================
+    function requestPerm(permKey) {
+        if (pendingKeys.has(permKey)) return; // 已在请求中
+        if (lastStatus[permKey] === true) {
+            showToast('✅ 该权限已授权', 'success');
+            return;
+        }
+
+        pendingKeys.add(permKey);
+        const callbackId = 'perm_' + (++callbackCounter);
+
+        // 更新 UI 为 pending 状态
+        updateItemStatus(permKey, 'pending', '⏳ 请求中...');
+
+        try {
+            NativeBridge.requestPermission(permKey, callbackId);
+        } catch(e) {
+            pendingKeys.delete(permKey);
+            updateItemStatus(permKey, 'denied', '❌ 调用失败');
+            showToast('⚠️ NativeBridge 不可用（请运行在真机或模拟器中）', 'error');
+        }
+    }
+
+    // ===================== 更新单个权限项的 UI =====================
+    function updateItemStatus(permKey, statusClass, statusText) {
+        const item = document.querySelector(`.perm-item[data-permkey="${permKey}"]`);
+        if (!item) return;
+        const badge = item.querySelector('.perm-status');
+        if (badge) {
+            badge.className = 'perm-status ' + statusClass;
+            badge.textContent = statusText;
+        }
+    }
+
+    // ===================== 查询所有权限状态 =====================
     function checkPermissions() {
         document.getElementById('summary').textContent = '⏳ 查询中...';
         const container = document.getElementById('perm-container');
@@ -167,12 +289,12 @@
             lastStatus = JSON.parse(json);
             renderPermissions(lastStatus);
         } catch(e) {
-            // NativeBridge 不可用（开发环境）
             container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.3;">⚠️ NativeBridge 不可用<br><span style="font-size:0.7rem;">请在真机或模拟器中运行</span></div>';
             document.getElementById('summary').textContent = '❌ 桥接未连接';
         }
     }
 
+    // ===================== 渲染权限列表 =====================
     function renderPermissions(status) {
         const container = document.getElementById('perm-container');
         let html = '';
@@ -188,10 +310,24 @@
                 const isGranted = val === true;
                 if (isGranted) granted++;
 
-                const statusClass = val === true ? 'granted' : (val === false ? 'denied' : 'unknown');
-                const statusText = val === true ? '✅ 已授权' : (val === false ? '❌ 未授权' : '— 未知');
+                // 判断状态：优先显示 pending，其次真实状态
+                const isPending = pendingKeys.has(p.key);
+                let statusClass, statusText;
+                if (isPending) {
+                    statusClass = 'pending';
+                    statusText = '⏳ 请求中...';
+                } else if (val === true) {
+                    statusClass = 'granted';
+                    statusText = '✅ 已授权';
+                } else if (val === false) {
+                    statusClass = 'denied';
+                    statusText = '❌ 未授权';
+                } else {
+                    statusClass = 'unknown';
+                    statusText = '— 未知';
+                }
 
-                html += '<div class="perm-item">';
+                html += '<div class="perm-item" data-permkey="' + p.key + '" onclick="requestPerm(\'' + p.key + '\')">';
                 html += '<div class="perm-name">' + p.name + '<span class="desc">' + p.desc + '</span></div>';
                 html += '<div class="perm-status ' + statusClass + '">' + statusText + '</div>';
                 html += '</div>';
@@ -201,7 +337,7 @@
 
         container.innerHTML = html;
 
-        // 摘要
+        // 计算摘要
         const pct = total > 0 ? Math.round(granted / total * 100) : 0;
         const summary = document.getElementById('summary');
         if (granted === total) {
@@ -209,13 +345,13 @@
         } else {
             summary.innerHTML = '📋 已授权 <strong>' + granted + '</strong> / ' + total +
                 ' 项（<strong>' + pct + '%</strong>）' +
-                ' · 未授权 <strong style="color:#ff453a;">' + (total - granted) + '</strong> 项';
+                ' · 未授权 <strong style="color:#ff453a;">' + (total - granted) + '</strong> 项' +
+                ' · 点击项授权';
         }
     }
 
-    // 页面加载后自动检查
+    // ===================== 页面加载 =====================
     document.addEventListener('DOMContentLoaded', function() {
-        // 给 NativeBridge 一点初始化时间
         setTimeout(checkPermissions, 300);
     });
     </script>

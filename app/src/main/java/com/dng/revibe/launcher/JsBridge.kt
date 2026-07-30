@@ -9,14 +9,18 @@ class JsBridge(context: Context, webView: WebView) {
     val contextRef = WeakReference(context)
     val webViewRef = WeakReference(webView)
 
-    // 权限模块
-    private val permissionModule = PermissionModule(this)
+    // 模块实例
+    val permissionModule = PermissionModule(this)
     private val shizukuModule = ShizukuModule(this)
     private val adminModule = AdminModule(this)
 
     // ============ PermissionModule 委托 ============
     @JavascriptInterface
     fun getPermissionStatus(): String = permissionModule.getAllStatus()
+
+    @JavascriptInterface
+    fun requestPermission(permKey: String, callbackId: String) =
+        permissionModule.requestPermission(permKey, callbackId)
 
     // ============ ShizukuModule 委托 ============
     @JavascriptInterface
@@ -32,7 +36,7 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isAdminActive(callbackId: String) = adminModule.isAdminActive(callbackId)
 
-    // 内部回调方法
+    // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {
         webViewRef.get()?.let { wv ->
             wv.post { wv.evaluateJavascript("window.$funcName($jsonArg);", null) }

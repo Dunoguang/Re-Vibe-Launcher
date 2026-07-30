@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowInsetsController
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +19,7 @@ class MainActivity : AppCompatActivity() {
 
     private var webView: WebView? = null
     private lateinit var permissions: Permissions
+    private var jsBridge: JsBridge? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
             settings.allowContentAccess = true
 
             val bridge = JsBridge(this@MainActivity, this)
+            jsBridge = bridge
             addJavascriptInterface(bridge, "NativeBridge")
 
             webViewClient = object : WebViewClient() {
@@ -78,12 +79,18 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // 先走原有的 Permissions 回调
         this.permissions.handleRequestPermissionsResult(requestCode, permissions, grantResults)
+        // 再走 PermissionModule 的 JS 回调
+        jsBridge?.permissionModule?.handleRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     @Deprecated("Use registerForActivityResult API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        // 先走原有的 Permissions 回调
         this.permissions.handleActivityResult(requestCode, resultCode, data)
+        // 再走 PermissionModule 的 JS 回调
+        jsBridge?.permissionModule?.handleActivityResult(requestCode, resultCode, data)
     }
 }
