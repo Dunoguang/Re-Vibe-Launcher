@@ -84,6 +84,17 @@ h1{font-size:22px;font-weight:300;letter-spacing:4px;text-align:center;margin-bo
         this.onTapCallback = onTap
         if (rootView != null) { updateSize(); return }
 
+        // JsBridge 在非 UI 线程调用，需切到主线程
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                showInternal()
+            }
+            return
+        }
+        showInternal()
+    }
+
+    private fun showInternal() {
         windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         recalcDimensions()
 
@@ -151,6 +162,14 @@ h1{font-size:22px;font-weight:300;letter-spacing:4px;text-align:center;margin-bo
     }
 
     fun hide() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { hideInternal() }
+            return
+        }
+        hideInternal()
+    }
+
+    private fun hideInternal() {
         rootView?.let { v -> try { windowManager?.removeView(v) } catch (_: Exception) {} }
         cleanup()
     }
@@ -158,6 +177,15 @@ h1{font-size:22px;font-weight:300;letter-spacing:4px;text-align:center;margin-bo
     val isShowing: Boolean get() = rootView != null
 
     fun updateSize() {
+        // 可能从 JS 线程调用，切到主线程
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { updateSizeInternal() }
+            return
+        }
+        updateSizeInternal()
+    }
+
+    private fun updateSizeInternal() {
         recalcDimensions()
         val p = currentParams ?: return
         val v = rootView ?: return
