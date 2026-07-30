@@ -11,22 +11,26 @@ import android.widget.TextView
 import android.graphics.Color
 
 /**
- * 悬浮窗管理
+ * 悬浮窗管理 — 控制中心拉手
  *
- * 面板比屏幕高 10%，默认只露出底部 10% 的「拉手」在屏幕顶部。
+ * 窗口本身只有 10% 屏幕高，放在屏幕顶部。
+ * 内部容器总高 = 屏幕高 + 10%，通过 translationY 上移，
+ * 只露出底部 10% 拉手。超出窗口部分被裁剪，不遮挡触摸。
  *
- * 实现方式：
- * - 窗口 = MATCH_PARENT × MATCH_PARENT（全屏），位置在屏幕内
- * - 窗口根布局内嵌一个总高 = 屏幕高 + 10% 的容器
- * - 该容器 translationY = -屏幕高 → 仅底部拉手区可见
- *
- * 横屏竖屏每次 show() 重新计算尺寸。
+ * 后续下拉展开时，通过 updateLayout 动态改变窗口大小。
  */
 class FloatWindow(private val context: Context) {
 
     private var windowManager: WindowManager? = null
-    private var floatView: View? = null
+    private var rootView: View? = null
+    private var container: View? = null
+    private var currentParams: WindowManager.LayoutParams? = null
     private var onTapCallback: (() -> Unit)? = null
+
+    // 记录尺寸供后续动态调整
+    private var screenH = 0
+    private var contentHeight = 0
+    private var tabHeight = 0
 
     fun show(onTap: (() -> Unit)? = null) {
         hide()
@@ -34,15 +38,10 @@ class FloatWindow(private val context: Context) {
         this.onTapCallback = onTap
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val displayMetrics = context.resources.displayMetrics
-        val screenH = displayMetrics.heightPixels
-
-        // 面板总高 = 屏幕高 + 10%
-        val totalHeight = (screenH * 1.1f).toInt()
-        // 拉手高 = 10%
-        val tabHeight = (screenH * 0.1f).toInt()
-        // 内容区高 = 100%
-        val contentHeight = screenH
+        val dm = context.resources.displayMetrics
+        screenH = dm.heightPixels
+        contentHeight = screenH
+        tabHeight = (screenH * 0.1f).toInt()
 
         // ---- 拉手区 ----
         val tab = FrameLayout(context).apply {
@@ -78,8 +77,9 @@ class FloatWindow(private val context: Context) {
             ))
         }
 
-        // ---- 总容器（内容区在上，拉手区在下，整体上移） ----
-        val container = FrameLayout(context).apply {
+        // ---- 内部容器（总高 110%，上移 100%） ----
+        val totalHeight = (screenH * 1.1f).toInt()
+        container = FrameLayout(context).apply {
             addView(contentArea, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 contentHeight
@@ -90,30 +90,29 @@ class FloatWindow(private val context: Context) {
                 tabHeight
             ).apply { gravity = Gravity.BOTTOM })
 
-            // 上移整个容器，只露出底部拉手在屏幕可见区域
             translationY = -contentHeight.toFloat()
         }
 
-        // ---- 窗口根布局（全屏，不做偏移） ----
-        val root = FrameLayout(context).apply {
+        // ---- 根布局（和窗口一样大，仅 10%） ----
+        rootView = FrameLayout(context).apply {
             setBackgroundColor(Color.TRANSPARENT)
-            // 容器比窗口高，超出部分被窗口裁剪
-            addView(container, FrameLayout.LayoutParams(
+            addView(container!!, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 totalHeight
             ))
+            // 根布局不设点击监听，触摸由内部拉手处理
+            // 容器内容超出窗口的部分自然被裁剪，不拦截触摸
         }
 
-        // ---- 窗口参数 ----
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+        // ---- 窗口参数：窗口 = 10% 高 ----
+        currentParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,  // 宽 100%
+            tabHeight,                                  // 高 = 10%（窗口本身只有这么大）
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -122,8 +121,7 @@ class FloatWindow(private val context: Context) {
         }
 
         try {
-            windowManager?.addView(root, params)
-            floatView = root
+            windowManager?.addView(rootView, currentParams!!)
         } catch (e: SecurityException) {
             onTapCallback = null
         } catch (e: Exception) {
@@ -132,14 +130,36 @@ class FloatWindow(private val context: Context) {
     }
 
     fun hide() {
-        floatView?.let { view ->
+        rootView?.let { view ->
             try {
                 windowManager?.removeView(view)
             } catch (_: Exception) {}
-            floatView = null
+            rootView = null
+            container = null
+            currentParams = null
         }
         onTapCallback = null
     }
 
-    val isShowing: Boolean get() = floatView != null
+    val isShowing: Boolean get() = rootView != null
+
+    /**
+     * 动态调整窗口大小（供后续下拉手势使用）
+     * @param newHeight 新的窗口高度（像素）
+     */
+    fun updateHeight(newHeight: Int) {
+        val params = currentParams ?: return
+        val view = rootView ?: return
+        if (newHeight == params.height) return
+
+        params.height = newHeight
+        try {
+            windowManager?.updateViewLayout(view, params)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * 获取容器引用（供动画使用）
+     */
+    fun getContainer(): View? = container
 }
