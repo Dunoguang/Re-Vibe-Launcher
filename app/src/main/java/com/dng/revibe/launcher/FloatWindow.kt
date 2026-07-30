@@ -60,7 +60,7 @@ class FloatWindow(context: Context) {
             addView(TextView(appContext).apply {
                 text = "\u22EE \u4E0B\u62C9\u5C55\u5F00 \u22EE"
                 textSize = 13f; setTextColor(0xAAFFFFFF.toInt()); gravity = Gravity.CENTER
-            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            }, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
         }
 
         // 内容区 — WebView + JS 上滑检测
@@ -76,18 +76,18 @@ class FloatWindow(context: Context) {
                 // 内嵌 HTML + 上滑检测 JS
                 loadDataWithBaseURL(null, controlCenterHtml(), "text/html", "UTF-8", null)
             }
-            addView(webView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(webView, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
         }
 
         container = FrameLayout(appContext).apply {
-            addView(contentArea, FrameLayout.LayoutParams(MATCH_PARENT, contentH).apply { gravity = Gravity.TOP })
-            addView(tab, FrameLayout.LayoutParams(MATCH_PARENT, tabH).apply { gravity = Gravity.BOTTOM })
+            addView(contentArea, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, contentH).apply { gravity = Gravity.TOP })
+            addView(tab, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, tabH).apply { gravity = Gravity.BOTTOM })
             translationY = -contentH.toFloat()
         }
 
         rootView = FrameLayout(appContext).apply {
             setBackgroundColor(0x00000000.toInt())
-            addView(container!!, FrameLayout.LayoutParams(MATCH_PARENT, totalH))
+            addView(container!!, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, totalH))
             setOnTouchListener(touchListener)
         }
 
@@ -208,15 +208,15 @@ class FloatWindow(context: Context) {
     }
 
     private fun buildParams(height: Int) = WindowManager.LayoutParams(
-        MATCH_PARENT, height,
+        WindowManager.LayoutParams.MATCH_PARENT, height,
         @Suppress("DEPRECATION") if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE,
-        FLAG_NOT_FOCUSABLE or FLAG_LAYOUT_IN_SCREEN or FLAG_NOT_TOUCH_MODAL,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START; y = 0
-        @Suppress("DEPRECATION") flags = flags or FLAG_LAYOUT_INSET_DECOR
+        @Suppress("DEPRECATION") flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
     }
 
     @Suppress("DEPRECATION")
