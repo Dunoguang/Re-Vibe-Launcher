@@ -45,10 +45,6 @@ class FloatWindow(context: Context) {
         private const val EXPAND_THRESHOLD = 0.15f
         private const val COLLAPSE_THRESHOLD = 0.85f
         private val CONTROL_CENTER_HTML = "<!DOCTYPE html><html><head><meta charset=UTF-8><meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,Segoe UI,sans-serif;background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;height:100vh;padding:20px 16px;display:flex;flex-direction:column}h1{font-size:22px;font-weight:300;text-align:center;margin-bottom:20px;background:linear-gradient(90deg,#ff6fd8,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}.card{background:rgba(255,255,255,.06);border-radius:14px;padding:16px 12px;text-align:center;backdrop-filter:blur(8px)}.card .label{font-size:12px;opacity:.6}.info{background:rgba(255,255,255,.04);border-radius:14px;padding:14px 16px;font-size:13px;opacity:.7;text-align:center}</style></head><body><h1>CONTROL CENTER</h1><div class=info>Re-Vibe Launcher</div><div class=grid><div class=card><div class=label>WiFi</div></div><div class=card><div class=label>Volume</div></div><div class=card><div class=label>Bright</div></div><div class=card><div class=label>Rotate</div></div><div class=card><div class=label>Airplane</div></div><div class=card><div class=label>Flash</div></div></div><div class=info>Swipe up to close</div></body></html>"
-        // {
-        private const val EXPAND_THRESHOLD = 0.15f
-        private const val COLLAPSE_THRESHOLD = 0.85f
-    }
 
     // ==================== 公开接口 ====================
 
