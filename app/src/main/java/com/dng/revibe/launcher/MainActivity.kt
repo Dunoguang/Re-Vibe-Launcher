@@ -18,7 +18,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var webView: WebView? = null
-    private var jsBridge: JsBridge? = null
     private lateinit var permissions: Permissions
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,8 +41,8 @@ class MainActivity : AppCompatActivity() {
             settings.allowFileAccess = true
             settings.allowContentAccess = true
 
-            jsBridge = JsBridge(this@MainActivity, this)
-            addJavascriptInterface(jsBridge, "NativeBridge")
+            val bridge = JsBridge(this@MainActivity, this)
+            addJavascriptInterface(bridge, "NativeBridge")
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
