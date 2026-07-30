@@ -47,6 +47,10 @@ class PermissionModule(private val bridge: JsBridge) {
             // Shizuku
             "shizuku" to ShizukuAPI.isConnected(),
 
+            // Shell / Root 权限
+            "shell" to ShellAPI.isShellAvailable(),
+            "root" to ShellAPI.isRootAvailable(),
+
             // 通知监听
             "notificationListener" to isNotificationListenerEnabled(context),
 
@@ -98,6 +102,18 @@ class PermissionModule(private val bridge: JsBridge) {
             "shizuku"               -> {
                 callbackResult(callbackId, ShizukuAPI.isConnected(),
                     if (ShizukuAPI.isConnected()) "Shizuku 已连接" else "Shizuku 未连接，请打开 Shizuku App")
+            }
+
+            // ---- Shell / Root 权限 ----
+            "shell" -> {
+                val avail = ShellAPI.isShellAvailable()
+                callbackResult(callbackId, avail,
+                    if (avail) "Shell 可用" else "Shell 不可用（异常）")
+            }
+            "root" -> {
+                val avail = ShellAPI.isRootAvailable()
+                callbackResult(callbackId, avail,
+                    if (avail) "Root 权限可用" else "无 Root 权限，可尝试 Shizuku")
             }
 
             // ---- WiFi 权限（通常已授予，直接返回状态） ----

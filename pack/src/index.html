@@ -204,9 +204,13 @@
             { key: 'overlay',          name: '悬浮窗',          desc: 'SYSTEM_ALERT_WINDOW' },
             { key: 'notificationListener', name: '通知监听',    desc: 'BIND_NOTIFICATION_LISTENER' }
         ],
+        'Shell / Root 权限': [
+            { key: 'shell',            name: 'Shell',           desc: '基础 Shell 执行' },
+            { key: 'shizuku',          name: 'Shizuku',         desc: 'Shell 执行权限' },
+            { key: 'root',             name: 'Root 权限',       desc: 'su 二进制 + uid=0' }
+        ],
         '系统功能': [
-            { key: 'deviceAdmin',      name: '设备管理员',      desc: '锁屏权限' },
-            { key: 'shizuku',          name: 'Shizuku',         desc: 'Shell 执行权限' }
+            { key: 'deviceAdmin',      name: '设备管理员',      desc: '锁屏权限' }
         ],
         'WiFi 权限': [
             { key: 'wifiState',        name: 'WiFi 状态',       desc: 'ACCESS_WIFI_STATE' },
@@ -225,9 +229,6 @@
         console.log('[权限回调]', JSON.stringify(data));
         const { callbackId, success, message } = data;
 
-        // 根据 callbackId 找到对应的 permKey（从 data-permkey 属性找，但简单起见从 pendingKeys 移除）
-        // 由于 callbackId 是递增的，我们标记所有 pending 状态重新查询
-        // 最简单的办法：清空 pending，重新检查
         pendingKeys.clear();
         showToast(message, success ? 'success' : 'error');
         // 延迟一下再刷新，给系统一点时间更新状态
