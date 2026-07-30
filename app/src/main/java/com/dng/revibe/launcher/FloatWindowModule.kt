@@ -4,10 +4,7 @@ import android.webkit.JavascriptInterface
 import com.google.gson.Gson
 
 /**
- * 悬浮窗模块 — 单实例管理，横竖屏自适应
- *
- * 使用 companion object 持有唯一的 FloatWindow 实例，
- * 即使 Activity 重建也不会创建新窗口。
+ * 悬浮窗模块 — 单实例，由前端触发尺寸更新
  */
 class FloatWindowModule(private val bridge: JsBridge) {
 
@@ -17,10 +14,6 @@ class FloatWindowModule(private val bridge: JsBridge) {
 
     private val gson = Gson()
 
-    /**
-     * 显示悬浮窗
-     * 首次调用创建窗口，后续调用仅更新尺寸（横竖屏切换时）
-     */
     @JavascriptInterface
     fun show(callbackId: String) {
         val context = bridge.getContext() ?: return
@@ -52,6 +45,12 @@ class FloatWindowModule(private val bridge: JsBridge) {
     @JavascriptInterface
     fun isShowing(): String {
         return gson.toJson(mapOf("showing" to (floatWindow?.isShowing == true)))
+    }
+
+    /** 前端调用：重新计算并更新窗口尺寸（横竖屏切换时） */
+    @JavascriptInterface
+    fun updateSize() {
+        floatWindow?.updateSize()
     }
 
     private fun callbackResult(callbackId: String, success: Boolean, message: String) {
