@@ -21,7 +21,7 @@ class FloatWindow(context: Context) {
     private var container: FrameLayout? = null
     private var currentParams: WindowManager.LayoutParams? = null
     private var onTapCallback: (() -> Unit)? = null
-    private var screenH = 0; private var contentH = 0
+    private var screenW = 0; private var screenH = 0; private var contentH = 0
     private var tabH = 0; private var totalH = 0
     private var isDragging = false
     private var dragStartY = 0f; private var dragStartTransY = 0f
@@ -282,12 +282,18 @@ class FloatWindow(context: Context) {
     // ==================== 工具 ====================
 
     private fun recalcDimensions() {
+        screenW = getScreenWidth()
         screenH = getScreenHeight()
-        tabH = (screenH * 0.1f).toInt(); contentH = screenH; totalH = (screenH * 1.1f).toInt()
+        val shortSide = kotlin.math.min(screenW, screenH)
+        // 控制中心 = 屏幕短边 × 屏幕短边（正方形）
+        contentH = shortSide
+        // 手柄 = 剩余部分（最少保留 80px 作为拖拽热区）
+        tabH = (screenH - contentH).coerceAtLeast(80)
+        totalH = contentH + tabH
     }
 
     private fun buildParams(height: Int) = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT, height,
+        screenW, height,
         @Suppress("DEPRECATION") if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE,
@@ -306,6 +312,16 @@ class FloatWindow(context: Context) {
             val m = android.util.DisplayMetrics(); wm.defaultDisplay.getRealMetrics(m); m.heightPixels
         } else {
             val pt = android.graphics.Point(); wm.defaultDisplay.getRealSize(pt); pt.y
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getScreenWidth(): Int {
+        val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val m = android.util.DisplayMetrics(); wm.defaultDisplay.getRealMetrics(m); m.widthPixels
+        } else {
+            val pt = android.graphics.Point(); wm.defaultDisplay.getRealSize(pt); pt.x
         }
     }
 
