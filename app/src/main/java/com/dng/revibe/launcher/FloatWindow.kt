@@ -273,9 +273,7 @@ class FloatWindow(context: Context) {
 
     private fun snapDrag() {
         val c = container ?: return; val p = currentParams ?: return
-        if (kotlin.math.abs(c.translationY - dragStartTransY) < 20f && p.height <= tabH + 20) {
-            hide(); onTapCallback?.invoke(); return
-        }
+        // 点击不再关闭窗口，直接按手势吸附
         val progress = 1f - (c.translationY / -contentH)
         if (lastDragDirection > 0) {
             if (progress > EXPAND_THRESHOLD) expand()
