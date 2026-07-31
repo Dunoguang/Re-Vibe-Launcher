@@ -151,7 +151,7 @@ class FloatWindow(context: Context) {
                     loadWithOverviewMode = false
                     useWideViewPort = false
                 }
-                setBackgroundColor(0x00000000.toInt())
+                setBackgroundColor(0x00FFFFFF.toInt())
                 addJavascriptInterface(ControlBridge(), "FloatControl")
                 loadUrl("file:///android_asset/control_center.html")
             }
