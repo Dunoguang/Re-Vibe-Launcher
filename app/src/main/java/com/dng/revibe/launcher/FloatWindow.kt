@@ -134,20 +134,25 @@ class FloatWindow(context: Context) {
 
         // 拉手
         val tab = FrameLayout(appContext).apply {
-            setBackgroundColor(0x00000000.toInt())
+            setBackgroundColor(0xFF1A1A2E.toInt())
         }
 
         // 内容区 — WebView + JS 上滑检测
         val contentArea = FrameLayout(appContext).apply {
-            setBackgroundColor(0x00000000.toInt())
+            setBackgroundColor(0xFF1A1A2E.toInt())
             val webView = android.webkit.WebView(appContext).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                setBackgroundColor(0x00000000.toInt())
+                settings.apply {
+                    javaScriptEnabled = true
+                    allowFileAccess = true
+                    domStorageEnabled = true
+                    allowUniversalAccessFromFileURLs = true
+                    allowFileAccessFromFileURLs = true
+                    // 与主 WebView 一致，不用 wide viewport（避免破坏 backdrop-filter 合成）
+                    loadWithOverviewMode = false
+                    useWideViewPort = false
+                }
+                setBackgroundColor(0xFF1A1A2E.toInt())
                 addJavascriptInterface(ControlBridge(), "FloatControl")
-                // 内嵌 HTML + 上滑检测 JS
                 loadUrl("file:///android_asset/control_center.html")
             }
             addView(webView, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
@@ -160,7 +165,7 @@ class FloatWindow(context: Context) {
         }
 
         rootView = FrameLayout(appContext).apply {
-            setBackgroundColor(0x00000000.toInt())
+            setBackgroundColor(0xFF1A1A2E.toInt())
             addView(container!!, FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, totalH))
             setOnTouchListener(touchListener)
         }
