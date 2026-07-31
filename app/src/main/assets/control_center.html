@@ -127,9 +127,7 @@ body{
         dragging = false;
         var dy = currentY - startY;
         if (dy < -maxSwipe) {
-            // 超过30%，先复原面板再收回
-            panel.style.transition = 'none';
-            panel.style.transform = 'translateY(0)';
+            // 超过30%，直接收回（panel 复原由收回动画完成后后端通知执行）
             FloatControl.collapse();
         } else {
             // 未到30%，弹回原位置

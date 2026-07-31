@@ -24,6 +24,7 @@ class FloatWindow(context: Context) {
     private var screenW = 0; private var screenH = 0; private var contentH = 0
     private var tabH = 0; private var totalH = 0
     private var collapsedWinH = 0; private var expandedWinH = 0
+    private var webViewRef: android.webkit.WebView? = null
     private var isDragging = false
     private var dragStartY = 0f; private var dragStartTransY = 0f
     private var dragStartWindowH = 0; private var lastDragDirection = 0
@@ -142,6 +143,7 @@ class FloatWindow(context: Context) {
         val contentArea = FrameLayout(appContext).apply {
             setBackgroundColor(0x66FF0000.toInt()) // 调试：半透明红
             val webView = android.webkit.WebView(appContext).apply {
+                webViewRef = this
                 settings.apply {
                     javaScriptEnabled = true
                     allowFileAccess = true
@@ -243,11 +245,22 @@ class FloatWindow(context: Context) {
         animateTo(0f, expandedWinH, null)
     }
     fun collapse() {
+        val action = {
+            animateTo(-contentH.toFloat(), collapsedWinH, null) {
+                // 收回完成后通知网页复原 panel
+                webViewRef?.post {
+                    webViewRef?.evaluateJavascript(
+                        "document.getElementById('panel') && (function(p){p.style.transition='none';p.style.transform='translateY(0)';})(document.getElementById('panel'));",
+                        null
+                    )
+                }
+            }
+        }
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post { animateTo(-contentH.toFloat(), collapsedWinH, null) }
+            android.os.Handler(android.os.Looper.getMainLooper()).post(action)
             return
         }
-        animateTo(-contentH.toFloat(), collapsedWinH, null)
+        action()
     }
 
     // ==================== 手势 ====================
@@ -369,6 +382,7 @@ class FloatWindow(context: Context) {
 
     private fun cleanup() {
         rootView = null; container = null; currentParams = null
+        webViewRef = null
         onTapCallback = null; isDragging = false
     }
 
