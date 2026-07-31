@@ -287,8 +287,8 @@ class FloatWindow(context: Context) {
         val shortSide = kotlin.math.min(screenW, screenH)
         // 控制中心 = 屏幕短边 × 屏幕短边（正方形）
         contentH = shortSide
-        // 手柄 = 剩余部分（最少保留 80px 作为拖拽热区）
-        tabH = (screenH - contentH).coerceAtLeast(80)
+        // 手柄 = 剩余部分
+        tabH = screenH - contentH
         totalH = contentH + tabH
     }
 
