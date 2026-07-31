@@ -23,6 +23,7 @@ class FloatWindow(context: Context) {
     private var onTapCallback: (() -> Unit)? = null
     private var screenW = 0; private var screenH = 0; private var contentH = 0
     private var tabH = 0; private var totalH = 0
+    private var collapsedWinH = 0; private var expandedWinH = 0
     private var isDragging = false
     private var dragStartY = 0f; private var dragStartTransY = 0f
     private var dragStartWindowH = 0; private var lastDragDirection = 0
@@ -170,7 +171,7 @@ class FloatWindow(context: Context) {
             setOnTouchListener(touchListener)
         }
 
-        currentParams = buildParams(tabH)
+        currentParams = buildParams(collapsedWinH)
         try { windowManager?.addView(rootView, currentParams!!) }
         catch (e: SecurityException) { cleanup() }
         catch (e: Exception) { cleanup() }
@@ -229,13 +230,13 @@ class FloatWindow(context: Context) {
     private fun updateSizeInternal() {
         recalcDimensions()
         val p = currentParams ?: return; val v = rootView ?: return; val wm = windowManager ?: return
-        val newP = buildParams(if (p.height > tabH) screenH else tabH)
+        val newP = buildParams(if (p.height > tabH) expandedWinH else collapsedWinH)
         p.width = newP.width; p.height = newP.height
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
     }
 
-    fun expand() { animateTo(0f, screenH, null) }
-    fun collapse() { animateTo(-contentH.toFloat(), tabH, null) }
+    fun expand() { animateTo(0f, expandedWinH, null) }
+    fun collapse() { animateTo(-contentH.toFloat(), collapsedWinH, null) }
 
     // ==================== 手势 ====================
 
@@ -266,7 +267,7 @@ class FloatWindow(context: Context) {
         lastDragDirection = if (dy > 0) 1 else -1
         val transY = (dragStartTransY + dy).coerceIn(-contentH.toFloat(), 0f)
         val progress = 1f - (transY / -contentH)
-        p.height = (tabH + progress * (screenH - tabH)).toInt()
+        p.height = (collapsedWinH + progress * (expandedWinH - collapsedWinH)).toInt()
         c.translationY = transY
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
     }
@@ -277,9 +278,9 @@ class FloatWindow(context: Context) {
         val progress = 1f - (c.translationY / -contentH)
         if (lastDragDirection > 0) {
             if (progress > EXPAND_THRESHOLD) expand()
-            else animateTo(-contentH.toFloat(), tabH, null)
+            else animateTo(-contentH.toFloat(), collapsedWinH, null)
         } else {
-            if (progress < COLLAPSE_THRESHOLD) animateTo(-contentH.toFloat(), tabH, null)
+            if (progress < COLLAPSE_THRESHOLD) animateTo(-contentH.toFloat(), collapsedWinH, null)
             else expand()
         }
     }
@@ -312,8 +313,12 @@ class FloatWindow(context: Context) {
         val shortSide = kotlin.math.min(screenW, screenH)
         // 控制中心 = 屏幕短边 × 屏幕短边（正方形）
         contentH = shortSide
-        // 手柄 = 剩余部分
+        // 手柄 tab 布局高度 = 展开时的剩余部分
         tabH = screenH - contentH
+        // 收起窗口高度 = 10%（顶部小拉手）
+        collapsedWinH = (screenH * 0.1f).toInt()
+        // 展开窗口高度 = 全屏
+        expandedWinH = screenH
         totalH = contentH + tabH
     }
 
