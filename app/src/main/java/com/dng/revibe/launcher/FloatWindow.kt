@@ -174,6 +174,7 @@ class FloatWindow(context: Context) {
         try { windowManager?.addView(rootView, currentParams!!) }
         catch (e: SecurityException) { cleanup() }
         catch (e: Exception) { cleanup() }
+        if (rootView != null) startTopKeeper()
     }
 
     fun hide() {
@@ -185,11 +186,37 @@ class FloatWindow(context: Context) {
     }
 
     private fun hideInternal() {
+        stopTopKeeper()
         rootView?.let { v -> try { windowManager?.removeView(v) } catch (_: Exception) {} }
         cleanup()
     }
 
     val isShowing: Boolean get() = rootView != null
+
+    // ==================== 常驻顶端循环 ====================
+    // 周期性检查并强制窗口回到屏幕顶端（y=0）
+    private val topKeeperHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val topKeeperRunnable = object : Runnable {
+        override fun run() {
+            val v = rootView ?: return
+            val p = currentParams ?: return
+            val wm = windowManager ?: return
+            if (p.y != 0) {
+                p.y = 0
+                try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
+            }
+            topKeeperHandler.postDelayed(this, 500L)
+        }
+    }
+
+    private fun startTopKeeper() {
+        topKeeperHandler.removeCallbacks(topKeeperRunnable)
+        topKeeperHandler.postDelayed(topKeeperRunnable, 500L)
+    }
+
+    private fun stopTopKeeper() {
+        topKeeperHandler.removeCallbacks(topKeeperRunnable)
+    }
 
     fun updateSize() {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
