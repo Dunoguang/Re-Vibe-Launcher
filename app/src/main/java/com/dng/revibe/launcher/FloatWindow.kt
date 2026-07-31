@@ -246,7 +246,7 @@ class FloatWindow(context: Context) {
     }
     fun collapse() {
         val action = {
-            animateTo(-contentH.toFloat(), collapsedWinH, null) {
+            animateTo(-contentH.toFloat(), collapsedWinH) {
                 // 收回完成后通知网页复原 panel
                 webViewRef?.post {
                     webViewRef?.evaluateJavascript(
