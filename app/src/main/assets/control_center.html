@@ -69,7 +69,6 @@ body{
 .signal-icon .bar1{height:8px}.signal-icon .bar2{height:12px}.signal-icon .bar3{height:16px}.signal-icon .bar4{height:20px}
 </style></head>
 <body>
-<div style="position:fixed;top:8%;left:50%;transform:translateX(-50%);width:180px;height:180px;background:#000;border-radius:20px;z-index:100;pointer-events:none;"></div>
 <div class="panel">
 <div class="grid">
 <div class="card card-wifi" id="wifiCard" onclick="toggleWifi()">
@@ -99,11 +98,44 @@ body{
 <div class="card card-btn4" id="btnSettings" onclick="openSettings()"><div class="icon-circle"><div class="btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div></div><span class="btn-label">设置</span></div>
 </div></div>
 <script>
-// 上滑检测
-var touchStartY=0,touched=false;
-document.addEventListener("touchstart",function(e){touchStartY=e.touches[0].clientY;touched=true},{passive:true});
-document.addEventListener("touchmove",function(e){},{passive:true});
-document.addEventListener("touchend",function(e){if(!touched)return;touched=false;var dy=e.changedTouches[0].clientY-touchStartY;if(dy<-window.innerHeight*0.15)FloatControl.collapse()},{passive:true});
+// 上滑跟随手指：内容随手指上移，未到30%松手弹回，到了直接收回
+(function(){
+    var panel = document.getElementById('panel');
+    var startY = 0, currentY = 0, dragging = false, maxSwipe = 0;
+    var THRESHOLD = 0.30; // 30% 触发收回
+
+    document.addEventListener("touchstart", function(e){
+        if (e.touches.length !== 1) return;
+        dragging = true;
+        startY = e.touches[0].clientY;
+        currentY = startY;
+        maxSwipe = window.innerHeight * THRESHOLD;
+    }, { passive: true });
+
+    document.addEventListener("touchmove", function(e){
+        if (!dragging) return;
+        currentY = e.touches[0].clientY;
+        var dy = currentY - startY;
+        // 只响应上滑（dy<0），向上跟随手指
+        var offset = dy < 0 ? dy : 0;
+        panel.style.transition = 'none';
+        panel.style.transform = 'translateY(' + offset + 'px)';
+    }, { passive: true });
+
+    document.addEventListener("touchend", function(){
+        if (!dragging) return;
+        dragging = false;
+        var dy = currentY - startY;
+        if (dy < -maxSwipe) {
+            // 超过30%，直接收回
+            FloatControl.collapse();
+        } else {
+            // 未到30%，弹回原位置
+            panel.style.transition = 'transform 0.3s ease';
+            panel.style.transform = 'translateY(0)';
+        }
+    }, { passive: true });
+})();
 
 // 控制函数
 function toggleWifi(){
