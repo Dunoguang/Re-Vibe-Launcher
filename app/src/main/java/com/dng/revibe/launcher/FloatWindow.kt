@@ -235,8 +235,20 @@ class FloatWindow(context: Context) {
         try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
     }
 
-    fun expand() { animateTo(0f, expandedWinH, null) }
-    fun collapse() { animateTo(-contentH.toFloat(), collapsedWinH, null) }
+    fun expand() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { animateTo(0f, expandedWinH, null) }
+            return
+        }
+        animateTo(0f, expandedWinH, null)
+    }
+    fun collapse() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { animateTo(-contentH.toFloat(), collapsedWinH, null) }
+            return
+        }
+        animateTo(-contentH.toFloat(), collapsedWinH, null)
+    }
 
     // ==================== 手势 ====================
 
