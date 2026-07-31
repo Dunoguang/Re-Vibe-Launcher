@@ -136,12 +136,12 @@ class FloatWindow(context: Context) {
 
         // 拉手
         val tab = FrameLayout(appContext).apply {
-            setBackgroundColor(0x660000FF.toInt()) // 调试：半透明蓝
+            setBackgroundColor(0x00000000.toInt())
         }
 
         // 内容区 — WebView + JS 上滑检测
         val contentArea = FrameLayout(appContext).apply {
-            setBackgroundColor(0x66FF0000.toInt()) // 调试：半透明红
+            setBackgroundColor(0x00000000.toInt())
             val webView = android.webkit.WebView(appContext).apply {
                 webViewRef = this
                 settings.apply {
@@ -154,7 +154,7 @@ class FloatWindow(context: Context) {
                     loadWithOverviewMode = false
                     useWideViewPort = false
                 }
-                setBackgroundColor(0x66FFFFFF.toInt()) // 调试：半透明白
+                setBackgroundColor(0x00000000.toInt())
                 addJavascriptInterface(ControlBridge(), "FloatControl")
                 loadUrl("file:///android_asset/control_center.html")
             }
@@ -352,7 +352,7 @@ class FloatWindow(context: Context) {
         @Suppress("DEPRECATION") if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START; y = 0
