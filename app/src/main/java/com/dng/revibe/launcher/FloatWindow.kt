@@ -139,13 +139,13 @@ class FloatWindow(context: Context) {
 
         // 内容区 — WebView + JS 上滑检测
         val contentArea = FrameLayout(appContext).apply {
-            setBackgroundColor(0xE61A1A2E.toInt())
+            setBackgroundColor(0x00000000.toInt())
             val webView = android.webkit.WebView(appContext).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                setBackgroundColor(0xFF1A1A2E.toInt())
+                setBackgroundColor(0x00000000.toInt())
                 addJavascriptInterface(ControlBridge(), "FloatControl")
                 // 内嵌 HTML + 上滑检测 JS
                 loadUrl("file:///android_asset/control_center.html")
