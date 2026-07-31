@@ -134,12 +134,12 @@ class FloatWindow(context: Context) {
 
         // 拉手
         val tab = FrameLayout(appContext).apply {
-            setBackgroundColor(0x00000000.toInt())
+            setBackgroundColor(0x660000FF.toInt()) // 调试：半透明蓝
         }
 
         // 内容区 — WebView + JS 上滑检测
         val contentArea = FrameLayout(appContext).apply {
-            setBackgroundColor(0x00000000.toInt())
+            setBackgroundColor(0x66FF0000.toInt()) // 调试：半透明红
             val webView = android.webkit.WebView(appContext).apply {
                 settings.apply {
                     javaScriptEnabled = true
@@ -151,7 +151,7 @@ class FloatWindow(context: Context) {
                     loadWithOverviewMode = false
                     useWideViewPort = false
                 }
-                setBackgroundColor(0x01FFFFFF.toInt())
+                setBackgroundColor(0x66FFFFFF.toInt()) // 调试：半透明白
                 addJavascriptInterface(ControlBridge(), "FloatControl")
                 loadUrl("file:///android_asset/control_center.html")
             }
