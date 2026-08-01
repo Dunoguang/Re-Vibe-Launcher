@@ -58,6 +58,7 @@ jobs:
       - name: ☁️ 上传并写入 Summary 喵～
         if: success()
         run: |
+          set +e
           APK=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned.apk" | head -1)
           
           if [ ! -f "$APK" ]; then
@@ -71,9 +72,9 @@ jobs:
           # ── 主服务: tempfile.org ──
           if [ -z "$UPLOADED" ]; then
             echo "尝试 tempfile.org ..."
-            RESP=$(curl -sS --max-time 30 -X POST https://tempfile.org/api/upload/local \
+            RESP=$(curl -4 -sS --max-time 30 -X POST https://tempfile.org/api/upload/local \
               -F "files=@${APK}" -F "expiryHours=48" 2>/dev/null)
-            URL=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['files'][0]['url'] + 'download')" 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['files'][0]['url'] + 'download')" 2>/dev/null) || URL=""
             if [ -n "$URL" ] && [ "$URL" != "download" ]; then
               UPLOADED="tempfile.org"; EXPIRY="48 小时"
             else
@@ -84,8 +85,8 @@ jobs:
           # ── 备用1: qu.ax (约30天) ──
           if [ -z "$UPLOADED" ]; then
             echo "尝试 qu.ax ..."
-            RESP=$(curl -sS --max-time 30 -F "files[]=@${APK}" https://qu.ax/upload.php 2>/dev/null)
-            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null)
+            RESP=$(curl -4 -sS --max-time 30 -F "files[]=@${APK}" https://qu.ax/upload.php 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null) || URL=""
             if [ -n "$URL" ]; then
               UPLOADED="qu.ax"; EXPIRY="30 天"
             else
@@ -96,8 +97,8 @@ jobs:
           # ── 备用2: uguu.se (3小时) ──
           if [ -z "$UPLOADED" ]; then
             echo "尝试 uguu.se ..."
-            RESP=$(curl -sS --max-time 30 -F "files[]=@${APK}" https://uguu.se/upload 2>/dev/null)
-            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null)
+            RESP=$(curl -4 -sS --max-time 30 -F "files[]=@${APK}" https://uguu.se/upload 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null) || URL=""
             if [ -n "$URL" ]; then
               UPLOADED="uguu.se"; EXPIRY="3 小时"
             else
