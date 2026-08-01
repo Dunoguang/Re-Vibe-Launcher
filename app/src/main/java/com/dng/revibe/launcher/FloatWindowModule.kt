@@ -48,10 +48,17 @@ class FloatWindowModule(private val bridge: JsBridge) {
         return gson.toJson(mapOf("showing" to (floatWindow?.isShowing == true)))
     }
 
-    /** 前端调用：重新计算并更新窗口尺寸（横竖屏切换时） */
+    /** 前端调用：直接关闭再重新开启悬浮窗（彻底重建 WebView，横竖屏切换等场景使用） */
     @JavascriptInterface
-    fun updateSize() {
-        floatWindow?.updateSize()
+    fun recreate(callbackId: String) {
+        val context = bridge.getContext() ?: return
+
+        // 先关闭
+        floatWindow?.hide()
+        floatWindow = null
+
+        // 再重新开启（复用 show 逻辑）
+        show(callbackId)
     }
 
     private fun callbackResult(callbackId: String, success: Boolean, message: String) {

@@ -56,7 +56,7 @@ class JsBridge(context: Context, webView: WebView) {
     fun hideFloatWindow() = floatWindowModule.hide()
 
     @JavascriptInterface
-    fun updateFloatWindowSize() = floatWindowModule.updateSize()
+    fun recreateFloatWindow(callbackId: String) = floatWindowModule.recreate(callbackId)
 
     @JavascriptInterface
     fun isFloatWindowShowing(): String = floatWindowModule.isShowing()

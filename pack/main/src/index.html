@@ -534,21 +534,21 @@
     }
 
     // ===================== 窗口大小变化监听 =====================
-    // 横竖屏切换或窗口大小变化时，通知后端重新计算悬浮窗尺寸
+    // 横竖屏切换或窗口大小变化时，直接关闭再重新开启悬浮窗（彻底重建 WebView）
     let resizeTimer = null;
     window.addEventListener('resize', function() {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(function() {
             try {
-                NativeBridge.updateFloatWindowSize();
+                NativeBridge.recreateFloatWindow('fw_recreate_' + Date.now());
             } catch(e) {}
         }, 200);
     });
     window.addEventListener('orientationchange', function() {
-        // 横竖屏切换后延迟等布局稳定再更新
+        // 横竖屏切换后延迟等布局稳定再重建
         setTimeout(function() {
             try {
-                NativeBridge.updateFloatWindowSize();
+                NativeBridge.recreateFloatWindow('fw_recreate_' + Date.now());
             } catch(e) {}
         }, 400);
     });
