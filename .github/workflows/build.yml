@@ -67,23 +67,12 @@ jobs:
             echo "⚠️ 无签名密钥，将使用 Debug 签名 喵～"
           fi
 
-      # 稳定版本号：基于 commit 数，同一 commit 重复构建时 versionCode 不变，
-      # 使 manifest 保持稳定 → Gradle 构建缓存可全量命中
+      # 版本号：基于时间戳（每次构建不同，便于区分/分发 APK）
       - name: 🔢 生成版本号 喵～
         run: |
-          COUNT=$(git rev-list --count HEAD)
-          echo "VERSION_CODE=${COUNT}" >> $GITHUB_ENV
-          echo "VERSION_NAME=1.0.${COUNT}" >> $GITHUB_ENV
-
-      # Gradle 9 配置缓存存项目本地 .gradle/configuration-cache（不在 ~/.gradle），
-      # 需单独缓存；key 用 commit SHA，同 commit 重复构建精确命中
-      - name: 💾 Gradle 配置缓存 喵～
-        uses: actions/cache@v6.1.0
-        with:
-          path: .gradle/configuration-cache
-          key: gradle-config-${{ github.sha }}
-          restore-keys: |
-            gradle-config-
+          TS=$(date +%s)
+          echo "VERSION_CODE=${TS}" >> $GITHUB_ENV
+          echo "VERSION_NAME=${TS}" >> $GITHUB_ENV
 
       # 构建缓存(build-cache-1)：setup-gradle 的 basic key 固定且 GitHub 不允许覆盖，
       # 缓存会冻结在首次状态（R8 结果存不进去）。改用 commit SHA 做 key 单独缓存，

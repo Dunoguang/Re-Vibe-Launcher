@@ -16,9 +16,9 @@ android {
         applicationId = "com.dng.revibe.launcher"
         minSdk = 27
         targetSdk = 37
-        // versionCode 由 CI 注入（基于 commit 数，稳定可命中构建缓存），本地默认 1
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
-        versionName = System.getenv("VERSION_NAME") ?: "1.0"
+        // versionCode 基于时间戳（每次构建不同，便于区分版本）；CI 注入 VERSION_CODE 优先
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: (System.currentTimeMillis() / 1000).toInt()
+        versionName = System.getenv("VERSION_NAME") ?: (System.currentTimeMillis() / 1000).toString()
     }
 
     signingConfigs {
