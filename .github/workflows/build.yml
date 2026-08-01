@@ -57,6 +57,7 @@ jobs:
 
       - name: ☁️ 上传并写入 Summary 喵～
         if: success()
+        continue-on-error: true
         run: |
           APK=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned.apk" | head -1)
           
@@ -83,7 +84,7 @@ jobs:
           echo "DOWNLOAD_URL=${URL}"
 
       - name: 📦 同步上传 Actions 产物 喵～
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: revibe-launcher-apk
