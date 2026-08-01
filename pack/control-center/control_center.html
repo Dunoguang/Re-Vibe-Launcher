@@ -149,7 +149,7 @@
           <path d="M1 7.5a16 16 0 0 1 22 0"/><path d="M3.5 11.5a12 12 0 0 1 17 0"/>
           <path d="M7 15.5a7 7 0 0 1 10 0"/><circle cx="12" cy="19" r="1.6"/>
         </svg></div>
-        <span class="cc-label">Wi-Fi</span>
+        <span class="cc-label" id="wifiLabel">Wi-Fi</span>
       </div>
 
       <!-- 移动数据 -->
@@ -157,7 +157,7 @@
         <div class="cc-icon-circle"><svg viewBox="0 0 24 24" class="signal-svg">
           <rect x="3" y="15" width="3" height="6" rx="1"/><rect x="8" y="11" width="3" height="10" rx="1"/><rect x="13" y="7" width="3" height="14" rx="1"/><rect x="18" y="3" width="3" height="18" rx="1"/>
         </svg></div>
-        <span class="cc-label">移动数据</span>
+        <span class="cc-label" id="dataLabel">移动数据</span>
       </div>
 
       <!-- 音乐 -->
@@ -215,73 +215,327 @@
 
 <script type="module" src="./liquid-glass.js?v=20260801"></script>
 <script>
-  /* 开关类卡片：点击切换 active */
-  const toggles = ['cardWifi','cardData','cardAir','cardTorch','cardLock']
-  toggles.forEach(id => {
-    const el = document.getElementById(id)
-    el.addEventListener('click', () => el.classList.toggle('active'))
-  })
-  document.getElementById('cardSet').addEventListener('click', () => {
-    statusHint('设置')
-  })
+/* ============================================================
+ * 控制中心 · 系统交互（移植自原项目 control-center.js）
+ * 通过 NativeBridge（悬浮窗内绑定的完整 JsBridge）与系统交互：
+ *   - 同步方法：getWifiState / getBrightness / getVolume / getMusicInfo …
+ *   - 异步方法：execPrivileged（自动 root → shell → shizuku → su 通道）
+ * ============================================================ */
+(function () {
+  'use strict';
 
-  /* 亮度/音量：竖条拖动 */
-  function setupBar(cardId, barId) {
-    const card = document.getElementById(cardId)
-    const bar = document.getElementById(barId)
-    let dragging = false, rafId = 0, rect = null
+  // ---------- NativeBridge 同步封装 ----------
+  function bridgeCall(method) {
+    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) { args[_key - 1] = arguments[_key]; }
+    try {
+      if (typeof NativeBridge !== 'undefined' && NativeBridge[method]) {
+        var raw = NativeBridge[method].apply(NativeBridge, args);
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw); } catch (e) { return { success: false }; }
+        }
+        return raw || { success: false };
+      }
+    } catch (e) {}
+    return { success: false };
+  }
+
+  var getWifiState        = function () { return bridgeCall('getWifiState'); };
+  var setWifiEnabled      = function (enable) { return bridgeCall('setWifiEnabled', enable); };
+  var openWifiSettings    = function () { return bridgeCall('openWifiSettings'); };
+  var getCurrentWifiInfo  = function () { return bridgeCall('getCurrentWifiInfo'); };
+  var getMobileDataEnabled= function () { return bridgeCall('getMobileDataEnabled'); };
+  var setMobileDataEnabled= function (enabled) { return bridgeCall('setMobileDataEnabled', enabled); };
+  var getBrightness       = function () { return bridgeCall('getBrightness'); };
+  var setBrightness       = function (val) { return bridgeCall('setBrightness', val); };
+  var getVolume           = function () { return bridgeCall('getVolume'); };
+  var setVolume           = function (val) { return bridgeCall('setVolume', val); };
+  var setFlashlight       = function (enabled) { return bridgeCall('setFlashlight', enabled); };
+  var getFlashlightState  = function () { return bridgeCall('getFlashlightState'); };
+  var openSettings        = function () { return bridgeCall('openSettings'); };
+  var openAirplaneModeSettings = function () { return bridgeCall('openAirplaneModeSettings'); };
+  var getMusicInfo        = function () { return bridgeCall('getMusicInfo'); };
+  var getSimInfo          = function () { return bridgeCall('getSimInfo'); };
+  var getNetworkInfo      = function () { return bridgeCall('getNetworkInfo'); };
+  var getSystemInfo       = function () { return bridgeCall('getSystemInfo'); };
+  var getBatteryLevel     = function () { return bridgeCall('getBatteryLevel'); };
+  var isCharging          = function () { return bridgeCall('isCharging'); };
+  var mediaPlayPause      = function () { return bridgeCall('mediaPlayPause'); };
+  var mediaNext           = function () { return bridgeCall('mediaNext'); };
+  var mediaPrevious       = function () { return bridgeCall('mediaPrevious'); };
+  var canWriteSettings    = function () { return bridgeCall('canWriteSettings'); };
+
+  // ---------- 特权 Shell 执行（root → shell → shizuku → su 自动通道） ----------
+  var ccSeq = 0, ccPending = {};
+  window._onPrivilegedResult = function (j) {
+    try {
+      var r = typeof j === 'string' ? JSON.parse(j) : j;
+      var cb = ccPending[r.callbackId];
+      if (cb) { delete ccPending[r.callbackId]; cb(r); }
+    } catch (e) {}
+  };
+  function execPrivileged(cmd, timeoutMs) {
+    timeoutMs = timeoutMs || 6000;
+    return new Promise(function (resolve) {
+      try {
+        var id = 'cc_' + (++ccSeq);
+        ccPending[id] = resolve;
+        NativeBridge.execPrivileged(cmd, id);
+        setTimeout(function () {
+          if (ccPending[id]) { delete ccPending[id]; resolve({ success: false, stderr: 'timeout' }); }
+        }, timeoutMs);
+      } catch (e) { resolve({ success: false, stderr: String(e) }); }
+    });
+  }
+  function execOk(r) { return !!(r && r.statusCode === 0); }
+
+  // ---------- 锁屏回调 ----------
+  var LOCK_CB = 'cc_lock';
+  window._onLockScreenResult = function (j) {
+    try {
+      var r = typeof j === 'string' ? JSON.parse(j) : j;
+      if (r.callbackId === LOCK_CB) setActive('cardLock', false);
+    } catch (e) {}
+  };
+
+  // ---------- DOM 工具 ----------
+  function $(id) { return document.getElementById(id); }
+  function setActive(id, active) {
+    var el = $(id);
+    if (el) el.classList.toggle('active', !!active);
+  }
+
+  // ---------- 开关逻辑 ----------
+  async function toggleWifi(enable) {
+    var r = await execPrivileged(enable ? 'svc wifi enable' : 'svc wifi disable');
+    if (execOk(r)) return { success: true, method: 'shell' };
+    var m = setWifiEnabled(enable);
+    if (m && m.success) return { success: true, method: 'manager' };
+    openWifiSettings();
+    return { success: true, method: 'settingsPage', panelOpened: true };
+  }
+  async function toggleMobileData(enable) {
+    var r = await execPrivileged(enable ? 'svc data enable' : 'svc data disable');
+    if (execOk(r)) return { success: true, method: 'shell' };
+    var m = setMobileDataEnabled(enable);
+    return { success: !!(m && m.success), method: 'bridge', panelOpened: false };
+  }
+  async function toggleAirplaneMode(enable) {
+    var state = enable ? '1' : '0';
+    var r = await execPrivileged('settings put global airplane_mode_on ' + state);
+    if (execOk(r)) {
+      await execPrivileged('am broadcast -a android.intent.action.AIRPLANE_MODE --ez state ' + enable);
+      return { success: true, method: 'shell' };
+    }
+    openAirplaneModeSettings();
+    return { success: true, method: 'settingsPage', panelOpened: true };
+  }
+  async function lockScreen() {
+    var r = await execPrivileged('input keyevent 26');
+    if (execOk(r)) { setActive('cardLock', false); return; }
+    try { NativeBridge.lockScreen(LOCK_CB); } catch (e) {}
+  }
+
+  // ---------- 状态读取 ----------
+  async function getMobileDataState() {
+    var r = await execPrivileged('settings get global mobile_data');
+    if (execOk(r)) {
+      var v = (r.stdout || '').trim();
+      if (v === '1' || v === '0') return { enabled: v === '1', success: true };
+    }
+    var fb = getMobileDataEnabled();
+    return fb && fb.success ? fb : { enabled: false, success: false };
+  }
+  async function getAirplaneMode() {
+    var r = await execPrivileged('settings get global airplane_mode_on');
+    if (execOk(r)) {
+      var v = (r.stdout || '').trim();
+      return { enabled: v === '1', success: true };
+    }
+    return { enabled: false, success: false };
+  }
+
+  // ---------- 标签更新 ----------
+  function updateWifiLabel() {
+    var labelEl = $('wifiLabel');
+    if (!labelEl) return;
+    var info = getCurrentWifiInfo();
+    if (info && info.success && info.ssid) labelEl.textContent = info.ssid;
+    else labelEl.textContent = 'Wi-Fi';
+  }
+  function updateCarrierLabel() {
+    var labelEl = $('dataLabel');
+    if (!labelEl) return;
+    var simInfo = getSimInfo();
+    if (!simInfo || !simInfo.success || !simInfo.sims || simInfo.sims.length === 0) {
+      labelEl.textContent = '无信号'; return;
+    }
+    var readySims = simInfo.sims.filter(function (sim) {
+      return sim.state === 5 && sim.operator && sim.operator.trim() !== '';
+    });
+    if (readySims.length === 0) { labelEl.textContent = '无信号'; return; }
+    var names = readySims.map(function (s) { return s.operator; });
+    var unique = names.filter(function (v, i) { return names.indexOf(v) === i; });
+    labelEl.textContent = unique.length === 1 ? unique[0] : unique.join('/');
+  }
+  function updateMusic() {
+    var music = getMusicInfo();
+    var titleEl = $('musicTitle'), artistEl = $('musicArtist');
+    if (!titleEl || !artistEl) return;
+    if (music && music.success && music.title) {
+      titleEl.textContent = music.title;
+      artistEl.textContent = music.artist || '未知艺术家';
+      $('iconPlay').style.display = music.isPlaying ? 'none' : 'block';
+      $('iconPause').style.display = music.isPlaying ? 'block' : 'none';
+    } else {
+      titleEl.textContent = '未在播放';
+      artistEl.textContent = '—';
+      $('iconPlay').style.display = 'block';
+      $('iconPause').style.display = 'none';
+    }
+  }
+
+  // ---------- 状态同步 ----------
+  async function syncInitialState() {
+    var wifi = getWifiState();
+    if (wifi && wifi.success) setActive('cardWifi', wifi.enabled);
+    updateWifiLabel();
+
+    try { var dataRes = await getMobileDataState(); if (dataRes && dataRes.success) setActive('cardData', dataRes.enabled); } catch (e) {}
+
+    var flash = getFlashlightState();
+    if (flash && flash.success) setActive('cardTorch', flash.enabled);
+
+    updateCarrierLabel();
+
+    try { var airRes = await getAirplaneMode(); if (airRes && airRes.success) setActive('cardAir', airRes.enabled); } catch (e) {}
+
+    var bri = getBrightness();
+    if (bri && bri.success) {
+      var cur = bri.brightness != null ? bri.brightness : (bri.current || 0);
+      var max = bri.max || 255;
+      $('barBright').style.height = Math.round((cur / max) * 100) + '%';
+    }
+    var vol = getVolume();
+    if (vol && vol.success) {
+      var cur2 = vol.current || 0;
+      var max2 = vol.max || 15;
+      $('barVolume').style.height = Math.round((cur2 / max2) * 100) + '%';
+    }
+    updateMusic();
+  }
+
+  // ---------- 亮度 / 音量竖条 ----------
+  function setupBar(cardId, barId, getVal, setVal, maxVal) {
+    var card = $(cardId), bar = $(barId);
+    var dragging = false, rafId = 0, rect = null;
     function update(clientY) {
-      if (!rect) return
-      const h = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height))
-      bar.style.height = Math.round(h * 100) + '%'
+      if (!rect) return;
+      var h = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
+      bar.style.height = Math.round(h * 100) + '%';
+      var val = Math.round(h * maxVal);
+      var res = setVal(val);
+      if (res && res.needPermission) {
+        // 需要 WRITE_SETTINGS 权限时跳转授权
+        try { NativeBridge.requestSettingsPermission(); } catch (e) {}
+      }
     }
-    card.addEventListener('pointerdown', (e) => {
-      dragging = true
-      rect = card.getBoundingClientRect()   // 只按下时算一次，拖动用缓存
-      card.setPointerCapture(e.pointerId)
-      card.classList.add('dragging')        // 拖动中关磨砂，避免重采样卡顿
-      update(e.clientY)
-    })
-    card.addEventListener('pointermove', (e) => {
-      if (!dragging || rafId) return        // rAF 节流：一帧只更新一次
-      rafId = requestAnimationFrame(() => { rafId = 0; update(e.clientY) })
-    })
-    const up = (e) => {
-      dragging = false
-      card.classList.remove('dragging')     // 松开恢复磨砂
-      if (rafId) cancelAnimationFrame(rafId)
-      rafId = 0
-      if (card.hasPointerCapture(e.pointerId)) card.releasePointerCapture(e.pointerId)
+    card.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      rect = card.getBoundingClientRect();
+      card.setPointerCapture(e.pointerId);
+      card.classList.add('dragging');
+      update(e.clientY);
+    });
+    card.addEventListener('pointermove', function (e) {
+      if (!dragging || rafId) return;
+      rafId = requestAnimationFrame(function () { rafId = 0; update(e.clientY); });
+    });
+    function up(e) {
+      dragging = false;
+      card.classList.remove('dragging');
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      if (card.hasPointerCapture(e.pointerId)) card.releasePointerCapture(e.pointerId);
     }
-    card.addEventListener('pointerup', up)
-    card.addEventListener('pointercancel', up)
+    card.addEventListener('pointerup', up);
+    card.addEventListener('pointercancel', up);
+    // 初始值
+    var res = getVal();
+    if (res && res.success) {
+      var cur = res.brightness != null ? res.brightness : (res.current || 0);
+      var max = res.max || maxVal;
+      bar.style.height = Math.round((cur / max) * 100) + '%';
+    }
   }
-  setupBar('cardBrightness', 'barBright')
-  setupBar('cardVolume', 'barVolume')
+  setupBar('cardBrightness', 'barBright', getBrightness, setBrightness, 255);
+  (function () {
+    var info = getVolume();
+    var max = (info && info.success && info.max) ? info.max : 15;
+    setupBar('cardVolume', 'barVolume', getVolume, setVolume, max);
+  })();
 
-  /* 音乐播放/暂停 */
-  let playing = false
-  const titles = ['Liquid Glass', 'Chromatic Dream', 'Refraction', 'Frosted Light']
-  const artists = ['LG Studio', 'Pixel Waves', 'Glass House', 'Aurora']
-  let idx = 0
-  const mTitle = document.getElementById('musicTitle')
-  const mArtist = document.getElementById('musicArtist')
-  function setTrack(i) {
-    idx = (i + titles.length) % titles.length
-    mTitle.textContent = titles[idx]
-    mArtist.textContent = artists[idx]
-  }
-  document.getElementById('mPlay').addEventListener('click', () => {
-    playing = !playing
-    document.getElementById('iconPlay').style.display = playing ? 'none' : 'block'
-    document.getElementById('iconPause').style.display = playing ? 'block' : 'none'
-  })
-  document.getElementById('mPrev').addEventListener('click', () => setTrack(idx - 1))
-  document.getElementById('mNext').addEventListener('click', () => setTrack(idx + 1))
+  // ---------- 卡片事件 ----------
+  $('cardWifi').addEventListener('click', async function () {
+    var state = getWifiState();
+    if (!state || !state.success) return;
+    var result = await toggleWifi(!state.enabled);
+    if (result && result.success) {
+      if (result.panelOpened) {
+        setActive('cardWifi', true);
+        setTimeout(function () { setActive('cardWifi', state.enabled); }, 400);
+      } else {
+        setActive('cardWifi', !state.enabled);
+        updateWifiLabel();
+      }
+    }
+  });
+  $('cardData').addEventListener('click', async function () {
+    var state = await getMobileDataState();
+    if (!state || !state.success) return;
+    var result = await toggleMobileData(!state.enabled);
+    if (result && result.success) {
+      if (result.panelOpened) {
+        setActive('cardData', true);
+        setTimeout(function () { setActive('cardData', state.enabled); }, 400);
+      } else {
+        setActive('cardData', !state.enabled);
+      }
+    }
+  });
+  $('cardAir').addEventListener('click', async function () {
+    var state = await getAirplaneMode();
+    if (!state || !state.success) return;
+    var result = await toggleAirplaneMode(!state.enabled);
+    if (result && result.success) {
+      if (result.panelOpened) {
+        setActive('cardAir', true);
+        setTimeout(function () { setActive('cardAir', state.enabled); }, 400);
+      } else {
+        setActive('cardAir', !state.enabled);
+      }
+    }
+  });
+  $('cardTorch').addEventListener('click', function () {
+    var state = getFlashlightState();
+    var next = !(state && state.success ? state.enabled : false);
+    var res = setFlashlight(next);
+    if (res && res.success) setActive('cardTorch', next);
+  });
+  $('cardLock').addEventListener('click', function () {
+    setActive('cardLock', true);
+    lockScreen();
+  });
+  $('cardSet').addEventListener('click', function () { openSettings(); });
 
-  function statusHint(name) {
-    console.log('点击了:', name)
-  }
+  // ---------- 音乐控制 ----------
+  $('mPlay').addEventListener('click', function () { mediaPlayPause(); setTimeout(updateMusic, 150); });
+  $('mPrev').addEventListener('click', function () { mediaPrevious(); setTimeout(updateMusic, 150); });
+  $('mNext').addEventListener('click', function () { mediaNext(); setTimeout(updateMusic, 150); });
+
+  // ---------- 启动：初始同步 + 定时刷新 ----------
+  setTimeout(syncInitialState, 100);
+  setInterval(syncInitialState, 2000);
+})();
 </script>
 </body>
 </html>

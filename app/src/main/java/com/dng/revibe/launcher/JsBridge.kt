@@ -15,6 +15,10 @@ class JsBridge(context: Context, webView: WebView) {
     private val shizukuModule = ShizukuModule(this)
     private val adminModule = AdminModule(this)
     private val floatWindowModule = FloatWindowModule(this)
+    private val wifiModule = WifiModule(this)
+    private val systemModule = SystemModule(this)
+    private val mediaModule = MediaModule(this)
+    private val infoModule = InfoModule(this)
 
     // ============ PermissionModule 委托 ============
     @JavascriptInterface
@@ -60,6 +64,103 @@ class JsBridge(context: Context, webView: WebView) {
 
     @JavascriptInterface
     fun isFloatWindowShowing(): String = floatWindowModule.isShowing()
+
+    // ============ WifiModule 委托（控制中心） ============
+    @JavascriptInterface
+    fun getWifiState() = wifiModule.getWifiState()
+
+    @JavascriptInterface
+    fun setWifiEnabled(enable: Boolean) = wifiModule.setWifiEnabled(enable)
+
+    @JavascriptInterface
+    fun openWifiSettings() = wifiModule.openWifiSettings()
+
+    @JavascriptInterface
+    fun getCurrentWifiInfo() = wifiModule.getCurrentWifiInfo()
+
+    // ============ SystemModule 委托（控制中心） ============
+    @JavascriptInterface
+    fun getBatteryLevel() = systemModule.getBatteryLevel()
+
+    @JavascriptInterface
+    fun isCharging() = systemModule.isCharging()
+
+    @JavascriptInterface
+    fun getMobileDataEnabled() = systemModule.getMobileDataEnabled()
+
+    @JavascriptInterface
+    fun setMobileDataEnabled(enabled: Boolean) = systemModule.setMobileDataEnabled(enabled)
+
+    @JavascriptInterface
+    fun getBrightness() = systemModule.getBrightness()
+
+    @JavascriptInterface
+    fun setBrightness(brightness: Int) = systemModule.setBrightness(brightness)
+
+    @JavascriptInterface
+    fun getVolume() = systemModule.getVolume()
+
+    @JavascriptInterface
+    fun setVolume(volume: Int) = systemModule.setVolume(volume)
+
+    @JavascriptInterface
+    fun toggleFlashlight() = systemModule.toggleFlashlight()
+
+    @JavascriptInterface
+    fun getFlashlightState() = systemModule.getFlashlightState()
+
+    @JavascriptInterface
+    fun setFlashlight(enabled: Boolean) = systemModule.setFlashlight(enabled)
+
+    @JavascriptInterface
+    fun lockScreen() = systemModule.lockScreen()
+
+    @JavascriptInterface
+    fun openSettings() = systemModule.openSettings()
+
+    @JavascriptInterface
+    fun openAirplaneModeSettings() = systemModule.openAirplaneModeSettings()
+
+    @JavascriptInterface
+    fun shareText(text: String) = systemModule.shareText(text)
+
+    @JavascriptInterface
+    fun getVolumeInfo() = systemModule.getVolumeInfo()
+
+    @JavascriptInterface
+    fun requestSettingsPermission() = systemModule.requestSettingsPermission()
+
+    @JavascriptInterface
+    fun canWriteSettings() = systemModule.canWriteSettings()
+
+    @JavascriptInterface
+    fun getSimInfo() = systemModule.getSimInfo()
+
+    @JavascriptInterface
+    fun hotspotEnabled() = systemModule.hotspotEnabled()
+
+    // ============ MediaModule 委托（控制中心） ============
+    @JavascriptInterface
+    fun getMusicInfo() = mediaModule.getMusicInfo()
+
+    @JavascriptInterface
+    fun getMusicCoverUrl() = mediaModule.getMusicCoverUrl()
+
+    @JavascriptInterface
+    fun mediaPlayPause() = mediaModule.mediaPlayPause()
+
+    @JavascriptInterface
+    fun mediaNext() = mediaModule.mediaNext()
+
+    @JavascriptInterface
+    fun mediaPrevious() = mediaModule.mediaPrevious()
+
+    // ============ InfoModule 委托（控制中心） ============
+    @JavascriptInterface
+    fun getSystemInfo() = infoModule.getSystemInfo()
+
+    @JavascriptInterface
+    fun getNetworkInfo() = infoModule.getNetworkInfo()
 
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {

@@ -159,6 +159,9 @@ class FloatWindow(context: Context) {
                     useWideViewPort = false
                 }
                 setBackgroundColor(0x00000000.toInt())
+                // 完整系统桥接（与原项目同构）：异步回调（_onPrivilegedResult/_onLockScreenResult 等）
+                // 会投递到本悬浮窗 WebView，因此这里为悬浮窗单独创建 JsBridge 实例
+                addJavascriptInterface(JsBridge(appContext, this), "NativeBridge")
                 addJavascriptInterface(ControlBridge(), "FloatControl")
                 loadUrl("file:///android_asset/control_center.html")
             }
