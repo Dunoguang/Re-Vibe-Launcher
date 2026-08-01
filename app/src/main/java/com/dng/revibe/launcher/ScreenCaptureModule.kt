@@ -140,6 +140,19 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
             tryRoot(callbackId, cmd, pkg, attempts)
             return
         }
+        if (!ShizukuAPI.isPermissionGranted()) {
+            Log.w(TAG, "Shizuku 未授权本应用")
+            attempts.append("• Shizuku：应用未授权")
+            // 尝试弹出授权界面，让用户在 Shizuku 中一键授权
+            try {
+                if (ShizukuAPI.requestPermission(10086)) {
+                    attempts.append("（已弹出授权界面，授权后重试）")
+                }
+            } catch (_: Exception) {}
+            attempts.append("\n")
+            tryRoot(callbackId, cmd, pkg, attempts)
+            return
+        }
         Log.i(TAG, "通过 Shizuku 尝试开启免授权")
         ShizukuAPI.execute(cmd) { r ->
             if (verifyNoAuthAllowed(r.stdout, r.stderr)) {
@@ -159,7 +172,12 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
                 Log.i(TAG, "免授权开启成功（Root）")
                 callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
             } else {
-                attempts.append("• Root(su)：退出码 ${r.statusCode} ${stderrBrief(r.stderr)}")
+                // ---VERIFY--- 之前的输出是 su/appops 自身的输出与错误（含被 2>&1 合并的 stderr）
+                val cmdOut = r.stdout.substringBefore("---VERIFY---").trim()
+                val errOut = r.stderr.trim()
+                attempts.append("• Root(su)：退出码 ${r.statusCode}")
+                if (cmdOut.isNotEmpty()) attempts.append(" 输出:${cmdOut.take(150).replace("\n", " ")}")
+                if (errOut.isNotEmpty()) attempts.append(" 错误:${errOut.take(150).replace("\n", " ")}")
                 Log.w(TAG, "免授权开启失败：\n$attempts")
                 callbackResult(
                     callbackId, false,

@@ -14,6 +14,24 @@ object ShizukuAPI {
         }
     }
 
+    /** 应用是否已在 Shizuku 中授权（未授权时调用 newProcess 会被服务端拒绝） */
+    fun isPermissionGranted(): Boolean {
+        return try {
+            Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 尝试弹出 Shizuku 授权界面，返回是否成功启动 */
+    fun requestPermission(requestCode: Int): Boolean {
+        return try {
+            Shizuku.requestPermission(requestCode)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun execute(command: String, callback: (CommandResult) -> Unit) {
         if (command.isBlank()) {
             callback(CommandResult("", "Command is empty", -1))
