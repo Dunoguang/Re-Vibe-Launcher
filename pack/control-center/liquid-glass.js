@@ -27,6 +27,7 @@ const DEFAULTS = {
   padding: '24px 32px',
   mode: 'standard',
   borderHighlight: true, // 边框高光开关（false 时完全透明）
+  noShadow: false,     // 关闭外投影（不影响边框高光）
   overLight: false,
 }
 
@@ -41,6 +42,7 @@ const ATTR_MAP = {
   mode: 'mode',
   'over-light': 'overLight',
   'no-border': 'borderHighlight',
+  'no-shadow': 'noShadow',
 }
 
 const NUMERIC_ATTRS = new Set([
@@ -125,6 +127,8 @@ class LiquidGlassElement extends HTMLElement {
       this.#opts.overLight = newV !== null
     } else if (key === 'borderHighlight') {
       this.#opts.borderHighlight = newV === null
+    } else if (key === 'noShadow') {
+      this.#opts.noShadow = newV === null
     } else if (key === "padding") {
       this.#opts.padding = newV
     } else if (key === "mode") {
@@ -183,10 +187,10 @@ class LiquidGlassElement extends HTMLElement {
     const glass = this.#els.glass
     glass.style.borderRadius = `${radius}px`
     glass.style.padding = o.padding
-    glass.style.boxShadow = o.borderHighlight === false ? 'none' : (o.overLight ? '0px 16px 70px rgba(0,0,0,0.75)' : '0px 12px 40px rgba(0,0,0,0.25)')
-      ? '0px 16px 70px rgba(0,0,0,0.75)'
-      : '0px 12px 40px rgba(0,0,0,0.25)'
-
+        // noShadow: 完全去掉外投影（保留边框高光则由 borderHighlight 独立控制）
+    glass.style.boxShadow = (o.noShadow || o.borderHighlight === false)
+      ? 'none'
+      : (o.overLight ? '0px 16px 70px rgba(0,0,0,0.75)' : '0px 12px 40px rgba(0,0,0,0.25)')
     // 边框高光开关：false 时隐藏高光描边与光晕
     const showHL = o.borderHighlight !== false
     this.#els.border.style.display = showHL ? '' : 'none'
