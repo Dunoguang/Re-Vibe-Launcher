@@ -2,7 +2,6 @@ package com.dng.revibe.launcher
 
 import android.app.AppOpsManager
 import android.content.Context
-import android.os.Build
 import android.os.Process
 import android.webkit.JavascriptInterface
 import com.google.gson.Gson
@@ -59,22 +58,22 @@ class ShellModule(private val bridge: JsBridge) {
         }
     }
 
-    /** 应用内查询自身 AppOps PROJECT_MEDIA 状态（无需 shell 权限） */
+    /**
+     * 应用内查询自身 AppOps PROJECT_MEDIA 状态（无需 shell 权限）。
+     * 注意：OP_PROJECT_MEDIA / OPSTR_PROJECT_MEDIA / MODE_* 多为 @hide 常量，编译不可见，
+     * 因此使用字面值：op="android:project_media"，MODE_ALLOWED=0 / IGNORED=1 / DENIED=2 / DEFAULT=3。
+     */
     private fun queryProjectMediaMode(ctx: Context?, uid: Int, pkg: String): String {
         if (ctx == null || pkg.isEmpty()) return "unknown"
         return try {
             val appOps = ctx.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_PROJECT_MEDIA, uid, pkg)
-            } else {
-                @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(AppOpsManager.OP_PROJECT_MEDIA, uid, pkg)
-            }
+            @Suppress("DEPRECATION")
+            val mode = appOps.checkOpNoThrow("android:project_media", uid, pkg)
             when (mode) {
-                AppOpsManager.MODE_ALLOWED -> "allow"
-                AppOpsManager.MODE_DENIED -> "deny"
-                AppOpsManager.MODE_DEFAULT -> "default"
-                else -> "ignore"
+                0 -> "allow"    // MODE_ALLOWED
+                2 -> "deny"     // MODE_DENIED
+                3 -> "default"  // MODE_DEFAULT
+                else -> "ignore" // MODE_IGNORED 等
             }
         } catch (e: Exception) {
             "unknown"
