@@ -32,9 +32,7 @@ jobs:
         run: |
           cd pack
           npm ci
-          npm run build
-          mkdir -p ../app/src/main/assets
-          cp dist/index.html ../app/src/main/assets/index.html
+          ./build.sh
 
       - name: 🔑 签名配置 喵～
         env:
