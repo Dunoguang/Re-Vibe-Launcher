@@ -447,10 +447,12 @@
             html += '<div class="section-title">' + groupName + '</div>';
 
             for (const p of perms) {
-                total++;
+                // 通道自检(shellTest)是工具项，不计入授权统计（但仍正常渲染显示）
+                const isStatItem = p.key !== 'shellTest';
+                if (isStatItem) total++;
                 const val = status[p.key];
                 const isGranted = val === true;
-                if (isGranted) granted++;
+                if (isGranted && isStatItem) granted++;
 
                 // 判断状态：优先显示 pending，其次真实状态
                 const isPending = pendingKeys.has(p.key);
