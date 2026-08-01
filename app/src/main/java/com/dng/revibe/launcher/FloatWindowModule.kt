@@ -54,49 +54,6 @@ class FloatWindowModule(private val bridge: JsBridge) {
         floatWindow?.updateSize()
     }
 
-    /** 前端调用：捕获控制中心画面为 base64，通过 _onCCPreviewImage 回调给主界面 */
-    @JavascriptInterface
-    fun captureControlCenter(callbackId: String) {
-        val fw = floatWindow ?: run {
-            callbackPreview(callbackId, false, null, "控制中心未打开")
-            return
-        }
-        try {
-            val b64 = fw.capture()
-            if (b64 != null) {
-                callbackPreview(callbackId, true, b64, null)
-            } else {
-                callbackPreview(callbackId, false, null, "WebView 尺寸无效或未就绪")
-            }
-        } catch (e: Exception) {
-            if (e is IllegalStateException) {
-                // capture 需主线程，post 到主线程重试
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    try {
-                        val b = fw.capture()
-                        if (b != null) callbackPreview(callbackId, true, b, null)
-                        else callbackPreview(callbackId, false, null, "WebView 尺寸无效")
-                    } catch (e2: Exception) {
-                        callbackPreview(callbackId, false, null, "捕获失败: ${e2.message}")
-                    }
-                }
-            } else {
-                callbackPreview(callbackId, false, null, "捕获异常: ${e.message}")
-            }
-        }
-    }
-
-    private fun callbackPreview(callbackId: String, success: Boolean, b64: String?, msg: String?) {
-        val data = mapOf(
-            "callbackId" to callbackId,
-            "success" to success,
-            "image" to (b64 ?: ""),
-            "message" to (msg ?: "")
-        )
-        // 推到主界面前端
-        bridge.callback("_onCCPreviewImage", gson.toJson(data))
-    }
-
     private fun callbackResult(callbackId: String, success: Boolean, message: String) {
         val result = mapOf(
             "callbackId" to callbackId,

@@ -193,33 +193,6 @@
         <button class="refresh-btn" style="flex:1;" onclick="closeFloatWindow()">✖️ 关闭悬浮窗</button>
     </div>
 
-    <!-- ===================== 屏幕实时预览 ===================== -->
-    <div class="section" style="margin-top:12px;">
-        <div class="section-title">📺 屏幕实时预览 · 投屏到本页</div>
-        <div id="preview-wrap" style="display:none;margin-bottom:10px;">
-            <img id="preview-img" alt="屏幕预览"
-                 style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#000;display:block;aspect-ratio:9/19.5;object-fit:contain;" />
-            <div style="text-align:center;font-size:0.65rem;opacity:0.35;margin-top:4px;">
-                <span id="preview-fps">等待帧数据...</span>
-            </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button class="refresh-btn" style="flex:1;" id="btn-start-preview" onclick="startScreenPreview()">▶️ 开始预览</button>
-            <button class="refresh-btn" style="flex:1;" id="btn-stop-preview" onclick="stopScreenPreview()" disabled>⏹️ 停止预览</button>
-        </div>
-        <button class="refresh-btn" style="margin-top:8px;" id="btn-noauth" onclick="enableNoAuthPreview()">🔓 免授权预览（需 Root / Shizuku）</button>
-    </div>
-
-    <!-- ===================== 控制中心画面 ===================== -->
-    <div class="section" style="margin-top:12px;">
-        <div class="section-title">🫧 控制中心画面</div>
-        <div id="cc-preview-wrap" style="display:none;margin-bottom:10px;">
-            <img id="cc-preview-img" alt="控制中心截图"
-                 style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#000;display:block;" />
-        </div>
-        <button class="refresh-btn" onclick="captureControlCenter()">📸 捕获控制中心画面</button>
-    </div>
-
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
     <div id="toast"></div>
@@ -384,7 +357,6 @@
             });
             deviceInfo = data;
             updateDeviceInfo();
-            updateNoAuthUI(data.projectMedia);
         } catch(e) {
             infoEl.innerHTML = '⚠️ 设备检测失败';
         }
@@ -418,21 +390,6 @@
             parts.push('通道:' + (labels[deviceInfo.channel] || deviceInfo.channel));
         }
         el.innerHTML = '设备: ' + parts.join(' · ');
-    }
-
-    // 免授权按钮状态联动：已开启 → 变绿禁用
-    function updateNoAuthUI(mode) {
-        const btn = document.getElementById('btn-noauth');
-        if (!btn) return;
-        if (mode === 'allow') {
-            btn.textContent = '✅ 免授权已开启';
-            btn.disabled = true;
-            btn.style.opacity = 0.6;
-        } else {
-            btn.textContent = '🔓 免授权预览（需 Root / Shizuku）';
-            btn.disabled = false;
-            btn.style.opacity = 1;
-        }
     }
 
     // ========== execShell 封装（同原项目 shell.js） ==========
@@ -576,134 +533,6 @@
         }
     }
 
-    // ===================== 屏幕实时预览 =====================
-    let previewRunning = false;
-    let previewStarting = false;
-    let frameCount = 0;
-    let fpsTimer = null;
-
-    // 帧回调（由 NativeBridge 推送 base64 JPEG）
-    window._onScreenFrame = function(data) {
-        const d = (typeof data === 'string') ? JSON.parse(data) : data;
-        if (d.image) {
-            const img = document.getElementById('preview-img');
-            if (img) img.src = 'data:image/jpeg;base64,' + d.image;
-            frameCount++;
-        }
-    };
-
-    // 开始/停止结果回调
-    window._onScreenPreviewResult = function(data) {
-        const d = (typeof data === 'string') ? JSON.parse(data) : data;
-        previewStarting = false;
-        const dur = d.success ? 3000 : 6000;
-        showToast(d.message || (d.success ? '✅ 操作成功' : '❌ 操作失败'), d.success ? 'success' : 'error', dur);
-        if (typeof d.running === 'boolean') {
-            previewRunning = d.running;
-            if (previewRunning) startFpsCounter(); else stopFpsCounter();
-        }
-        updatePreviewUI();
-        // 免授权结果后刷新设备信息（同步按钮/状态）
-        if (d.message && d.message.indexOf('免授权') >= 0) {
-            setTimeout(detectDevice, 600);
-        }
-    };
-
-    function updatePreviewUI() {
-        const wrap = document.getElementById('preview-wrap');
-        const btnStart = document.getElementById('btn-start-preview');
-        const btnStop = document.getElementById('btn-stop-preview');
-        if (wrap) wrap.style.display = previewRunning ? 'block' : 'none';
-        if (btnStart) { btnStart.disabled = previewRunning || previewStarting; btnStart.style.opacity = (previewRunning || previewStarting) ? 0.4 : 1; }
-        if (btnStop) { btnStop.disabled = !previewRunning; btnStop.style.opacity = previewRunning ? 1 : 0.4; }
-    }
-
-    // FPS 统计：每秒读取后立即清零 → 显示最近 1 秒的真实帧数（而非累计值）
-    function startFpsCounter() {
-        clearInterval(fpsTimer);
-        frameCount = 0;
-        const fpsEl = document.getElementById('preview-fps');
-        if (!fpsEl) return;
-        fpsEl.textContent = '实时帧率: 0 FPS';
-        fpsTimer = setInterval(function() {
-            const fps = frameCount;
-            frameCount = 0; // 关键：读取后立即重置，避免越滚越大
-            if (previewRunning) fpsEl.textContent = '实时帧率: ' + fps + ' FPS';
-        }, 1000);
-    }
-
-    function stopFpsCounter() {
-        clearInterval(fpsTimer);
-        fpsTimer = null;
-        const fpsEl = document.getElementById('preview-fps');
-        if (fpsEl) fpsEl.textContent = '等待帧数据...';
-    }
-
-    // 一键开启免授权（AppOps PROJECT_MEDIA=allow，需 Root/Shizuku/ADB）
-    function enableNoAuthPreview() {
-        showToast('🔔 正在请求授权，请在 Shizuku 窗口中允许...', '', 5000);
-        try {
-            NativeBridge.enableNoAuthScreenPreview('sp_' + (++callbackCounter));
-        } catch(e) {
-            showToast('⚠️ 调用失败: ' + e.message, 'error');
-        }
-    }
-
-    function startScreenPreview() {
-        if (previewRunning || previewStarting) return;
-        previewStarting = true;
-        updatePreviewUI();
-        try {
-            NativeBridge.startScreenPreview('sp_' + (++callbackCounter));
-        } catch(e) {
-            previewStarting = false;
-            updatePreviewUI();
-            showToast('⚠️ 调用失败: ' + e.message, 'error');
-        }
-    }
-
-    function stopScreenPreview() {
-        if (!previewRunning) return;
-        try {
-            NativeBridge.stopScreenPreview('sp_' + (++callbackCounter));
-        } catch(e) {
-            showToast('⚠️ 调用失败: ' + e.message, 'error');
-        }
-    }
-
-    // ===================== 控制中心画面捕获 =====================
-    window._onCCPreviewImage = function(data) {
-        const d = (typeof data === 'string') ? JSON.parse(data) : data;
-        if (d.success && d.image) {
-            const img = document.getElementById('cc-preview-img');
-            const wrap = document.getElementById('cc-preview-wrap');
-            if (img) img.src = 'data:image/jpeg;base64,' + d.image;
-            if (wrap) wrap.style.display = 'block';
-            showToast('📸 已捕获控制中心画面', 'success');
-        } else {
-            showToast('⚠️ 捕获失败: ' + (d.message || '未知错误'), 'error');
-        }
-    };
-
-    function captureControlCenter() {
-        try {
-            if (!NativeBridge.captureControlCenter) throw new Error('captureControlCenter 不可用');
-            NativeBridge.captureControlCenter('cc_' + (++callbackCounter));
-        } catch(e) {
-            showToast('⚠️ 调用失败: ' + e.message, 'error');
-        }
-    }
-
-    // 页面加载时同步预览状态
-    function syncPreviewState() {
-        try {
-            const info = JSON.parse(NativeBridge.isScreenPreviewing());
-            previewRunning = info.capturing === true;
-        } catch(e) { previewRunning = false; }
-        if (previewRunning) startFpsCounter(); else stopFpsCounter();
-        updatePreviewUI();
-    }
-
     // ===================== 窗口大小变化监听 =====================
     // 横竖屏切换或窗口大小变化时，通知后端重新计算悬浮窗尺寸
     let resizeTimer = null;
@@ -728,7 +557,6 @@
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(checkPermissions, 300);
         setTimeout(detectDevice, 600);
-        setTimeout(syncPreviewState, 800);
     });
     </script>
 </body>

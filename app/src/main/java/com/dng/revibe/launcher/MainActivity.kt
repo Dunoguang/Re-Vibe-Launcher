@@ -70,8 +70,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // 停止屏幕预览，释放 MediaProjection
-        jsBridge?.screenCaptureModule?.release()
         webView?.destroy()
         super.onDestroy()
     }
@@ -128,7 +126,5 @@ class MainActivity : AppCompatActivity() {
         this.permissions.handleActivityResult(requestCode, resultCode, data)
         // 再走 PermissionModule 的 JS 回调
         jsBridge?.permissionModule?.handleActivityResult(requestCode, resultCode, data)
-        // 再走 ScreenCaptureModule（MediaProjection 授权结果）
-        jsBridge?.screenCaptureModule?.handleActivityResult(requestCode, resultCode, data)
     }
 }
