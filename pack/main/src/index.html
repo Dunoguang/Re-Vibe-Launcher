@@ -542,6 +542,7 @@
 
     // 一键开启免授权（AppOps PROJECT_MEDIA=allow，需 Root/Shizuku/ADB）
     function enableNoAuthPreview() {
+        showToast('🔔 正在请求授权，请在 Shizuku 窗口中允许...', '', 5000);
         try {
             NativeBridge.enableNoAuthScreenPreview('sp_' + (++callbackCounter));
         } catch(e) {

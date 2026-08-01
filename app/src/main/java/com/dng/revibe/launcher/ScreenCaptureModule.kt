@@ -141,16 +141,33 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
             return
         }
         if (!ShizukuAPI.isPermissionGranted()) {
-            Log.w(TAG, "Shizuku 未授权本应用")
-            attempts.append("• Shizuku：应用未授权")
-            // 尝试弹出授权界面，让用户在 Shizuku 中一键授权
-            try {
-                if (ShizukuAPI.requestPermission(10086)) {
-                    attempts.append("（已弹出授权界面，授权后重试）")
+            Log.w(TAG, "Shizuku 未授权，弹出授权界面等待反馈")
+            attempts.append("• Shizuku：应用未授权，已请求授权\n")
+            val started = ShizukuAPI.requestPermission(10086) { granted ->
+                if (granted) {
+                    // 授权成功 → 继续执行 appops
+                    Log.i(TAG, "Shizuku 授权成功，继续执行")
+                    ShizukuAPI.execute(cmd) { r ->
+                        if (verifyNoAuthAllowed(r.stdout, r.stderr)) {
+                            Log.i(TAG, "免授权开启成功（Shizuku）")
+                            callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
+                        } else {
+                            attempts.append("• Shizuku：退出码 ${r.statusCode} ${stderrBrief(r.stderr)}\n")
+                            tryRoot(callbackId, cmd, pkg, attempts)
+                        }
+                    }
+                } else {
+                    // 用户拒绝 / 超时 → fallback Root
+                    Log.w(TAG, "Shizuku 授权被拒绝或超时")
+                    attempts.append("• Shizuku：授权被拒绝或超时\n")
+                    tryRoot(callbackId, cmd, pkg, attempts)
                 }
-            } catch (_: Exception) {}
-            attempts.append("\n")
-            tryRoot(callbackId, cmd, pkg, attempts)
+            }
+            if (!started) {
+                // 授权界面都弹不出来（异常）→ 直接 fallback Root
+                attempts.append("• Shizuku：无法弹出授权界面\n")
+                tryRoot(callbackId, cmd, pkg, attempts)
+            }
             return
         }
         Log.i(TAG, "通过 Shizuku 尝试开启免授权")
