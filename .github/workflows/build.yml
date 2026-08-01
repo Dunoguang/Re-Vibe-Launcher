@@ -7,9 +7,6 @@ on:
     branches: ['**']
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -58,10 +55,9 @@ jobs:
       - name: 📦 打包 APK 喵～
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: ☁️ 上传 Release 并写入 Summary 喵～
+      - name: ☁️ 上传并写入 Summary 喵～
         if: success()
         run: |
-          set +e
           APK=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned.apk" | head -1)
           
           if [ ! -f "$APK" ]; then
@@ -69,36 +65,31 @@ jobs:
             exit 1
           fi
           
-          echo "📤 上传到 GitHub Releases..."
-          TAG="nightly"
-          NAME="ReVibe-Launcher $(date -u +%Y%m%d-%H%M)"
-          
-          # 删除旧的 nightly release（不存在也无妨）
-          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null
-          
-          # 创建新的 nightly release 并上传 APK
-          if gh release create "$TAG" "$APK" \
-            --title "$NAME" \
-            --notes "自动构建产物 · $(git log -1 --format='%h %s' 2>/dev/null || echo 'ReVibe')" \
-            --latest; then
-            URL="https://github.com/Dunoguang/Re-Vibe-Launcher/releases/download/$TAG/$(basename "$APK")"
-            echo "✅ 上传成功"
-          else
-            echo "❌ GitHub Releases 上传失败 呜..." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
+          echo "📤 上传中..."
+          RESP=$(curl -sS -X POST https://tempfile.org/api/upload/local \
+            -F "files=@${APK}" -F "expiryHours=48")
+          URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'] + 'download')")
           
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ## 🐾 构建完成 喵～
           
-          | 📦 产物 | 🔗 链接 | 📏 大小 | ☁️ 存储 |
-          |---------|---------|---------|--------|
-          | Release APK | [点击下载](${URL}) | $(du -h "$APK" | cut -f1) | GitHub Releases (永久) |
+          | 📦 产物 | 🔗 链接 | 📏 大小 | ⏰ 有效期 |
+          |---------|---------|---------|-----------|
+          | Release APK | [点击下载](${URL}) | $(du -h "$APK" | cut -f1) | 48 小时 |
           
           > \`${URL}\`
           EOF
           
           echo "DOWNLOAD_URL=${URL}"
+
+      - name: 📦 同步上传 Actions 产物 喵～
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revibe-launcher-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: 🐾 喵呜～
         if: always()
