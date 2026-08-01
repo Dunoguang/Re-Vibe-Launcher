@@ -129,39 +129,64 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
         val pkg = bridge.getContext()?.packageName ?: "com.dng.revibe.launcher"
         val cmd = "appops set $pkg android:project_media allow 2>&1; echo '---VERIFY---'; appops get $pkg android:project_media 2>&1"
 
-        // 优先 Shizuku（shell 权限即可修改 AppOps）
-        if (ShizukuAPI.isConnected()) {
-            Log.i(TAG, "通过 Shizuku 开启免授权")
-            ShizukuAPI.execute(cmd) { r -> finishNoAuth(callbackId, r.stdout, r.stderr) }
-            return
-        }
-        // 其次 Root（su）
-        Log.i(TAG, "尝试通过 Root(su) 开启免授权")
-        Shell.execute("su -c \"$cmd\" 2>&1") { r -> finishNoAuth(callbackId, r.stdout, r.stderr) }
+        // 串行尝试：Shizuku → Root(su)，都失败则给出完整诊断
+        tryShizuku(callbackId, cmd, pkg, StringBuilder())
     }
 
-    private fun finishNoAuth(callbackId: String, stdout: String, stderr: String) {
-        val pkg = bridge.getContext()?.packageName ?: "com.dng.revibe.launcher"
+    private fun tryShizuku(callbackId: String, cmd: String, pkg: String, attempts: StringBuilder) {
+        if (!ShizukuAPI.isConnected()) {
+            Log.w(TAG, "Shizuku 未连接")
+            attempts.append("• Shizuku：未连接\n")
+            tryRoot(callbackId, cmd, pkg, attempts)
+            return
+        }
+        Log.i(TAG, "通过 Shizuku 尝试开启免授权")
+        ShizukuAPI.execute(cmd) { r ->
+            if (verifyNoAuthAllowed(r.stdout, r.stderr)) {
+                Log.i(TAG, "免授权开启成功（Shizuku）")
+                callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
+            } else {
+                attempts.append("• Shizuku：退出码 ${r.statusCode} ${stderrBrief(r.stderr)}\n")
+                tryRoot(callbackId, cmd, pkg, attempts)
+            }
+        }
+    }
+
+    private fun tryRoot(callbackId: String, cmd: String, pkg: String, attempts: StringBuilder) {
+        Log.i(TAG, "尝试通过 Root(su) 开启免授权")
+        Shell.execute("su -c \"$cmd\" 2>&1") { r ->
+            if (verifyNoAuthAllowed(r.stdout, r.stderr)) {
+                Log.i(TAG, "免授权开启成功（Root）")
+                callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
+            } else {
+                attempts.append("• Root(su)：退出码 ${r.statusCode} ${stderrBrief(r.stderr)}")
+                Log.w(TAG, "免授权开启失败：\n$attempts")
+                callbackResult(
+                    callbackId, false,
+                    "❌ 免授权开启失败\n${attempts}\n可手动 ADB：adb shell appops set $pkg android:project_media allow",
+                    false
+                )
+            }
+        }
+    }
+
+    /** 取 stderr 关键信息，最多 120 字符，空则标注无错误输出 */
+    private fun stderrBrief(stderr: String): String {
+        val e = stderr.trim()
+        return if (e.isEmpty()) "(无错误输出)" else e.take(120).replace("\n", " ")
+    }
+
+    /** 校验 appops get 输出是否已是 allow（且未被 ignore/deny） */
+    private fun verifyNoAuthAllowed(stdout: String, stderr: String): Boolean {
         val output = stdout + "\n" + stderr
-        // 取 ---VERIFY--- 之后的 appops get 输出，判断是否已是 allow
         val verify = if (output.contains("---VERIFY---")) {
             output.substringAfter("---VERIFY---")
         } else {
             output
         }
-        val allowed = verify.contains("allow", ignoreCase = true) &&
+        return verify.contains("allow", ignoreCase = true) &&
                 !verify.contains("ignore", ignoreCase = true) &&
                 !verify.contains("denied", ignoreCase = true)
-
-        if (allowed) {
-            callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
-        } else {
-            callbackResult(
-                callbackId, false,
-                "⚠️ 开启失败（需 Root/Shizuku），可手动 ADB 执行：adb shell appops set $pkg android:project_media allow",
-                false
-            )
-        }
     }
 
     // ==================== Activity 结果处理（由 MainActivity 调用） ====================

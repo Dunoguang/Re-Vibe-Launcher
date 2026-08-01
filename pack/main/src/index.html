@@ -143,6 +143,7 @@
         #toast {
             position: fixed;
             bottom: 80px;
+            white-space: pre-line;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
             background: rgba(0,0,0,0.85);
@@ -258,12 +259,12 @@
 
     // ===================== 显示 Toast =====================
     let toastTimer = null;
-    function showToast(msg, type) {
+    function showToast(msg, type, duration) {
         const el = document.getElementById('toast');
         el.textContent = msg;
         el.className = 'show ' + (type || '');
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+        toastTimer = setTimeout(() => { el.className = ''; }, duration || 3000);
     }
 
     // ===================== 请求权限 =====================
@@ -500,7 +501,8 @@
     window._onScreenPreviewResult = function(data) {
         const d = (typeof data === 'string') ? JSON.parse(data) : data;
         previewStarting = false;
-        showToast(d.message || (d.success ? '✅ 操作成功' : '❌ 操作失败'), d.success ? 'success' : 'error');
+        const dur = d.success ? 3000 : 6000;
+        showToast(d.message || (d.success ? '✅ 操作成功' : '❌ 操作失败'), d.success ? 'success' : 'error', dur);
         if (typeof d.running === 'boolean') {
             previewRunning = d.running;
             if (previewRunning) startFpsCounter(); else stopFpsCounter();
