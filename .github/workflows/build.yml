@@ -33,7 +33,7 @@ jobs:
 
       # 前端依赖缓存：node_modules 命中时跳过 npm ci
       - name: 💾 前端依赖缓存 喵～
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v6.1.0
         with:
           path: pack/node_modules
           key: npm-${{ hashFiles('pack/package-lock.json') }}
