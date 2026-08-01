@@ -14,8 +14,6 @@ ASSETS=../app/src/main/assets
 
 cp main/dist/index.html "$ASSETS/index.html"
 cp control-center/dist/control_center.html "$ASSETS/control_center.html"
-rm -rf "$ASSETS/cc-assets"
-cp -r control-center/dist/cc-assets "$ASSETS/cc-assets"
 
 echo "==> 完成"
 find "$ASSETS" -type f | sort
