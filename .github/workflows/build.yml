@@ -76,7 +76,7 @@ jobs:
           echo "VERSION_NAME=1.0.${COUNT}" >> $GITHUB_ENV
 
       - name: 📦 打包 APK 喵～
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: ./gradlew --no-daemon :app:assembleRelease --info  # 临时加 --info 排查配置缓存失效原因
 
       - name: ☁️ 上传并写入 Summary 喵～
         if: success()
