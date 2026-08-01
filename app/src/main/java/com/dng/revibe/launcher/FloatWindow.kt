@@ -233,6 +233,14 @@ class FloatWindow(context: Context) {
         updateSizeInternal()
     }
 
+    private fun updateSizeInternal() {
+        recalcDimensions()
+        val p = currentParams ?: return; val v = rootView ?: return; val wm = windowManager ?: return
+        val newP = buildParams(if (p.height > tabH) expandedWinH else collapsedWinH)
+        p.width = newP.width; p.height = newP.height
+        try { wm.updateViewLayout(v, p) } catch (_: Exception) {}
+    }
+
     fun expand() {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             android.os.Handler(android.os.Looper.getMainLooper()).post { animateTo(0f, expandedWinH, null) }
