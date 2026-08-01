@@ -27,9 +27,12 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      # setup-gradle 自动缓存：wrapper 分发 + 依赖 + 构建缓存(build-cache-1) + 配置缓存
+      # setup-gradle 缓存：basic provider 缓存整个 ~/.gradle/caches
+      # （含依赖 + 构建缓存 build-cache-1 + 配置缓存 configuration-cache），key 基于 build 文件 hash
       - name: 🐘 Gradle 环境准备 喵～
         uses: gradle/actions/setup-gradle@v6.2.0
+        with:
+          cache-provider: basic  # enhanced 专有缓存不包含 configuration-cache，改用 basic
 
       # 前端依赖缓存：node_modules 命中时跳过 npm ci
       - name: 💾 前端依赖缓存 喵～
