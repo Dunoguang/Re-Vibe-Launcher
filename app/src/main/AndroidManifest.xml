@@ -26,6 +26,10 @@
     <uses-permission android:name="android.permission.FLASHLIGHT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
+    <!-- ========== 屏幕预览（MediaProjection 前台服务） ========== -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <queries>
@@ -69,6 +73,12 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- ========== 屏幕预览前台服务（Android 14+ MediaProjection 必需） ========== -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- ========== Shizuku ========== -->
         <provider

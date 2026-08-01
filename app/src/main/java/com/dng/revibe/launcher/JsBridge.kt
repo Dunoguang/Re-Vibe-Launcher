@@ -15,6 +15,7 @@ class JsBridge(context: Context, webView: WebView) {
     private val shizukuModule = ShizukuModule(this)
     private val adminModule = AdminModule(this)
     private val floatWindowModule = FloatWindowModule(this)
+    val screenCaptureModule = ScreenCaptureModule(this)
 
     // ============ PermissionModule 委托 ============
     @JavascriptInterface
@@ -54,6 +55,16 @@ class JsBridge(context: Context, webView: WebView) {
 
     @JavascriptInterface
     fun isFloatWindowShowing(): String = floatWindowModule.isShowing()
+
+    // ============ ScreenCaptureModule 委托（屏幕实时预览） ============
+    @JavascriptInterface
+    fun startScreenPreview(callbackId: String) = screenCaptureModule.startPreview(callbackId)
+
+    @JavascriptInterface
+    fun stopScreenPreview(callbackId: String) = screenCaptureModule.stopPreview(callbackId)
+
+    @JavascriptInterface
+    fun isScreenPreviewing(): String = screenCaptureModule.isPreviewing()
 
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {

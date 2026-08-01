@@ -115,6 +115,7 @@
             transition: background 0.2s;
         }
         .refresh-btn:active { background: rgba(255,255,255,0.18); }
+        .refresh-btn:disabled { opacity: 0.4; pointer-events: none; }
 
         .badge {
             display: inline-block;
@@ -189,6 +190,22 @@
     <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="refresh-btn" style="flex:1;" onclick="openFloatWindow()">🪟 开启悬浮窗</button>
         <button class="refresh-btn" style="flex:1;" onclick="closeFloatWindow()">✖️ 关闭悬浮窗</button>
+    </div>
+
+    <!-- ===================== 屏幕实时预览 ===================== -->
+    <div class="section" style="margin-top:12px;">
+        <div class="section-title">📺 屏幕实时预览 · 投屏到本页</div>
+        <div id="preview-wrap" style="display:none;margin-bottom:10px;">
+            <img id="preview-img" alt="屏幕预览"
+                 style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#000;display:block;aspect-ratio:9/19.5;object-fit:contain;" />
+            <div style="text-align:center;font-size:0.65rem;opacity:0.35;margin-top:4px;">
+                <span id="preview-fps">等待帧数据...</span>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="refresh-btn" style="flex:1;" id="btn-start-preview" onclick="startScreenPreview()">▶️ 开始预览</button>
+            <button class="refresh-btn" style="flex:1;" id="btn-stop-preview" onclick="stopScreenPreview()" disabled>⏹️ 停止预览</button>
+        </div>
     </div>
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
@@ -462,6 +479,86 @@
         }
     }
 
+    // ===================== 屏幕实时预览 =====================
+    let previewRunning = false;
+    let previewStarting = false;
+    let frameCount = 0;
+    let fpsTimer = null;
+
+    // 帧回调（由 NativeBridge 推送 base64 JPEG）
+    window._onScreenFrame = function(data) {
+        const d = (typeof data === 'string') ? JSON.parse(data) : data;
+        if (d.image) {
+            const img = document.getElementById('preview-img');
+            if (img) img.src = 'data:image/jpeg;base64,' + d.image;
+            frameCount++;
+        }
+    };
+
+    // 开始/停止结果回调
+    window._onScreenPreviewResult = function(data) {
+        const d = (typeof data === 'string') ? JSON.parse(data) : data;
+        previewStarting = false;
+        showToast(d.message || (d.success ? '✅ 操作成功' : '❌ 操作失败'), d.success ? 'success' : 'error');
+        if (typeof d.running === 'boolean') previewRunning = d.running;
+        updatePreviewUI();
+    };
+
+    function updatePreviewUI() {
+        const wrap = document.getElementById('preview-wrap');
+        const btnStart = document.getElementById('btn-start-preview');
+        const btnStop = document.getElementById('btn-stop-preview');
+        if (wrap) wrap.style.display = previewRunning ? 'block' : 'none';
+        if (btnStart) { btnStart.disabled = previewRunning || previewStarting; btnStart.style.opacity = (previewRunning || previewStarting) ? 0.4 : 1; }
+        if (btnStop) { btnStop.disabled = !previewRunning; btnStop.style.opacity = previewRunning ? 1 : 0.4; }
+        // FPS 统计
+        if (previewRunning) {
+            const fpsEl = document.getElementById('preview-fps');
+            if (fpsEl) {
+                frameCount = 0;
+                clearInterval(fpsTimer);
+                fpsTimer = setInterval(function() {
+                    if (fpsEl && previewRunning) fpsEl.textContent = '实时帧率: ' + frameCount + ' FPS';
+                }, 1000);
+            }
+        } else {
+            clearInterval(fpsTimer);
+            const fpsEl = document.getElementById('preview-fps');
+            if (fpsEl) fpsEl.textContent = '等待帧数据...';
+        }
+    }
+
+    function startScreenPreview() {
+        if (previewRunning || previewStarting) return;
+        previewStarting = true;
+        updatePreviewUI();
+        try {
+            NativeBridge.startScreenPreview('sp_' + (++callbackCounter));
+        } catch(e) {
+            previewStarting = false;
+            updatePreviewUI();
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
+        }
+    }
+
+    function stopScreenPreview() {
+        if (!previewRunning) return;
+        try {
+            NativeBridge.stopScreenPreview('sp_' + (++callbackCounter));
+        } catch(e) {
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
+        }
+    }
+
+    // 页面加载时同步预览状态
+    function syncPreviewState() {
+        try {
+            const info = JSON.parse(NativeBridge.isScreenPreviewing());
+            previewRunning = info.capturing === true;
+        } catch(e) { previewRunning = false; }
+        updatePreviewUI();
+    }
+
     // ===================== 窗口大小变化监听 =====================
     // 横竖屏切换或窗口大小变化时，通知后端重新计算悬浮窗尺寸
     let resizeTimer = null;
@@ -486,6 +583,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(checkPermissions, 300);
         setTimeout(detectDevice, 600);
+        setTimeout(syncPreviewState, 800);
     });
     </script>
 </body>
