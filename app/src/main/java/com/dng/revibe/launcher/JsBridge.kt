@@ -66,6 +66,9 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isScreenPreviewing(): String = screenCaptureModule.isPreviewing()
 
+    @JavascriptInterface
+    fun enableNoAuthScreenPreview(callbackId: String) = screenCaptureModule.enableNoAuth(callbackId)
+
     // ============ JS 回调 ============
     fun callback(funcName: String, jsonArg: String) {
         webViewRef.get()?.let { wv ->

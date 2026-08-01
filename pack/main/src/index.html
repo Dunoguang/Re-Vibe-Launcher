@@ -206,6 +206,7 @@
             <button class="refresh-btn" style="flex:1;" id="btn-start-preview" onclick="startScreenPreview()">▶️ 开始预览</button>
             <button class="refresh-btn" style="flex:1;" id="btn-stop-preview" onclick="stopScreenPreview()" disabled>⏸️ 暂停预览</button>
         </div>
+        <button class="refresh-btn" style="margin-top:8px;" onclick="enableNoAuthPreview()">🔓 免授权预览（需 Root / Shizuku）</button>
     </div>
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
@@ -535,6 +536,15 @@
         fpsTimer = null;
         const fpsEl = document.getElementById('preview-fps');
         if (fpsEl) fpsEl.textContent = '等待帧数据...';
+    }
+
+    // 一键开启免授权（AppOps PROJECT_MEDIA=allow，需 Root/Shizuku/ADB）
+    function enableNoAuthPreview() {
+        try {
+            NativeBridge.enableNoAuthScreenPreview('sp_' + (++callbackCounter));
+        } catch(e) {
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
+        }
     }
 
     function startScreenPreview() {

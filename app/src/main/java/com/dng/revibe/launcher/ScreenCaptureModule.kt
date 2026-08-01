@@ -118,6 +118,52 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
     /** 查询是否正在预览 */
     fun isPreviewing(): String = gson.toJson(mapOf("capturing" to isCapturing))
 
+    /**
+     * 一键开启免授权（AppOps PROJECT_MEDIA=allow）
+     *
+     * 原理：系统授权对话框与 Android 14 前台服务检查都会查询 AppOps OP_PROJECT_MEDIA(46)。
+     * 设为 allow 后：授权对话框自动通过（不弹窗）、无需前台服务，真正免授权。
+     * 需要 Shizuku（shell 权限）或 Root 执行，普通 App 权限无法修改自身 AppOps。
+     */
+    fun enableNoAuth(callbackId: String) {
+        val pkg = bridge.getContext()?.packageName ?: "com.dng.revibe.launcher"
+        val cmd = "appops set $pkg android:project_media allow 2>&1; echo '---VERIFY---'; appops get $pkg android:project_media 2>&1"
+
+        // 优先 Shizuku（shell 权限即可修改 AppOps）
+        if (ShizukuAPI.isConnected()) {
+            Log.i(TAG, "通过 Shizuku 开启免授权")
+            ShizukuAPI.execute(cmd) { r -> finishNoAuth(callbackId, r.stdout, r.stderr) }
+            return
+        }
+        // 其次 Root（su）
+        Log.i(TAG, "尝试通过 Root(su) 开启免授权")
+        Shell.execute("su -c \"$cmd\" 2>&1") { r -> finishNoAuth(callbackId, r.stdout, r.stderr) }
+    }
+
+    private fun finishNoAuth(callbackId: String, stdout: String, stderr: String) {
+        val pkg = bridge.getContext()?.packageName ?: "com.dng.revibe.launcher"
+        val output = stdout + "\n" + stderr
+        // 取 ---VERIFY--- 之后的 appops get 输出，判断是否已是 allow
+        val verify = if (output.contains("---VERIFY---")) {
+            output.substringAfter("---VERIFY---")
+        } else {
+            output
+        }
+        val allowed = verify.contains("allow", ignoreCase = true) &&
+                !verify.contains("ignore", ignoreCase = true) &&
+                !verify.contains("denied", ignoreCase = true)
+
+        if (allowed) {
+            callbackResult(callbackId, true, "🔓 免授权已开启（PROJECT_MEDIA=allow），预览不再弹窗", false)
+        } else {
+            callbackResult(
+                callbackId, false,
+                "⚠️ 开启失败（需 Root/Shizuku），可手动 ADB 执行：adb shell appops set $pkg android:project_media allow",
+                false
+            )
+        }
+    }
+
     // ==================== Activity 结果处理（由 MainActivity 调用） ====================
 
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
