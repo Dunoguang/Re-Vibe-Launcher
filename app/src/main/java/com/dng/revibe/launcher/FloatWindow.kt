@@ -233,6 +233,34 @@ class FloatWindow(context: Context) {
         updateSizeInternal()
     }
 
+    /**
+     * 捕获控制中心 WebView 的当前画面为 JPEG base64。
+     * @return base64 字符串，若 WebView 不可用返回 null
+     */
+    fun capture(): String? {
+        val wv = webViewRef ?: return null
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            throw IllegalStateException("capture 必须在主线程调用")
+        }
+        return try {
+            val w = wv.width
+            val h = wv.height
+            if (w <= 0 || h <= 0) return null
+            val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            // 白色不透明底色，避免透明 WebView 截出全黑/全透明（控制中心背景是透明的）
+            canvas.drawColor(android.graphics.Color.BLACK)
+            wv.draw(canvas)
+            val out = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+            bitmap.recycle()
+            android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            android.util.Log.e("FloatWindow", "捕获控制中心失败", e)
+            null
+        }
+    }
+
     private fun updateSizeInternal() {
         recalcDimensions()
         val p = currentParams ?: return; val v = rootView ?: return; val wm = windowManager ?: return

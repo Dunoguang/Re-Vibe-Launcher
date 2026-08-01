@@ -209,6 +209,17 @@
         </div>
         <button class="refresh-btn" style="margin-top:8px;" id="btn-noauth" onclick="enableNoAuthPreview()">🔓 免授权预览（需 Root / Shizuku）</button>
     </div>
+
+    <!-- ===================== 控制中心画面 ===================== -->
+    <div class="section" style="margin-top:12px;">
+        <div class="section-title">🫧 控制中心画面</div>
+        <div id="cc-preview-wrap" style="display:none;margin-bottom:10px;">
+            <img id="cc-preview-img" alt="控制中心截图"
+                 style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#000;display:block;" />
+        </div>
+        <button class="refresh-btn" onclick="captureControlCenter()">📸 捕获控制中心画面</button>
+    </div>
+
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
     <div id="toast"></div>
@@ -655,6 +666,29 @@
         if (!previewRunning) return;
         try {
             NativeBridge.stopScreenPreview('sp_' + (++callbackCounter));
+        } catch(e) {
+            showToast('⚠️ 调用失败: ' + e.message, 'error');
+        }
+    }
+
+    // ===================== 控制中心画面捕获 =====================
+    window._onCCPreviewImage = function(data) {
+        const d = (typeof data === 'string') ? JSON.parse(data) : data;
+        if (d.success && d.image) {
+            const img = document.getElementById('cc-preview-img');
+            const wrap = document.getElementById('cc-preview-wrap');
+            if (img) img.src = 'data:image/jpeg;base64,' + d.image;
+            if (wrap) wrap.style.display = 'block';
+            showToast('📸 已捕获控制中心画面', 'success');
+        } else {
+            showToast('⚠️ 捕获失败: ' + (d.message || '未知错误'), 'error');
+        }
+    };
+
+    function captureControlCenter() {
+        try {
+            if (!NativeBridge.captureControlCenter) throw new Error('captureControlCenter 不可用');
+            NativeBridge.captureControlCenter('cc_' + (++callbackCounter));
         } catch(e) {
             showToast('⚠️ 调用失败: ' + e.message, 'error');
         }

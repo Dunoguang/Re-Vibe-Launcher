@@ -62,6 +62,9 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun isFloatWindowShowing(): String = floatWindowModule.isShowing()
 
+    @JavascriptInterface
+    fun captureControlCenter(callbackId: String) = floatWindowModule.captureControlCenter(callbackId)
+
     // ============ ScreenCaptureModule 委托（屏幕实时预览） ============
     @JavascriptInterface
     fun startScreenPreview(callbackId: String) = screenCaptureModule.startPreview(callbackId)
