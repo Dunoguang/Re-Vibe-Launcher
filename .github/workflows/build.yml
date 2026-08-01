@@ -85,6 +85,17 @@ jobs:
           restore-keys: |
             gradle-config-
 
+      # 构建缓存(build-cache-1)：setup-gradle 的 basic key 固定且 GitHub 不允许覆盖，
+      # 缓存会冻结在首次状态（R8 结果存不进去）。改用 commit SHA 做 key 单独缓存，
+      # 每次新 commit 保存新条目、同 commit 精确命中
+      - name: 💾 Gradle 构建缓存 喵～
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-buildcache-${{ github.sha }}
+          restore-keys: |
+            gradle-buildcache-
+
       - name: 📦 打包 APK 喵～
         run: ./gradlew --no-daemon :app:assembleRelease
 
