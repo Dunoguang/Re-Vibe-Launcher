@@ -54,8 +54,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/revibe-launcher.p12"
-            echo "ANDROID_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/revibe-launcher.p12" >> $GITHUB_ENV
+            echo "$KEYSTORE_BASE64" | base64 -d > /tmp/revibe-launcher.p12
+            echo "ANDROID_SIGNING_KEYSTORE_PATH=/tmp/revibe-launcher.p12" >> $GITHUB_ENV
             echo "ANDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD" >> $GITHUB_ENV
             echo "ANDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
             echo "ANDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
