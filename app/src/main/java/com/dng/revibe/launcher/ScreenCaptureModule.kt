@@ -129,6 +129,11 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
         val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         try {
             val projection = mpm.getMediaProjection(resultCode, data)
+            if (projection == null) {
+                callbackResult(callbackId, false, "获取 MediaProjection 失败", false)
+                stopForegroundService()
+                return
+            }
             startCaptureLoop(activity, projection, callbackId)
             callbackResult(callbackId, true, "屏幕预览已启动", true)
         } catch (e: Exception) {
