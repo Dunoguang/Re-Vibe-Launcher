@@ -228,8 +228,8 @@
             { key: 'overlay',          name: '悬浮窗',          desc: 'SYSTEM_ALERT_WINDOW' },
             { key: 'notificationListener', name: '通知监听',    desc: 'BIND_NOTIFICATION_LISTENER' }
         ],
-        'Shell 执行': [
-            { key: 'shizuku',          name: 'Shizuku',         desc: '服务式 Shell 执行' }
+        'Shell 通道': [
+            { key: 'shellTest',        name: '通道自检',        desc: '执行 id -u 验证最高可用权限通道' }
         ],
         '系统功能': [
             { key: 'deviceAdmin',      name: '设备管理员',      desc: '锁屏权限' }
@@ -269,6 +269,11 @@
 
     // ===================== 请求权限 =====================
     function requestPerm(permKey) {
+        // 通道自检不是权限申请，走特权通道实际执行验证
+        if (permKey === 'shellTest') {
+            testShellChannel();
+            return;
+        }
         if (pendingKeys.has(permKey)) return; // 已在请求中
         if (lastStatus[permKey] === true) {
             showToast('✅ 该权限已授权', 'success');
@@ -287,6 +292,35 @@
             pendingKeys.delete(permKey);
             updateItemStatus(permKey, 'denied', '❌ 调用失败');
             showToast('⚠️ NativeBridge 不可用（请运行在真机或模拟器中）', 'error');
+        }
+    }
+
+    // ===================== Shell 通道自检（点击权限列表"通道自检"项） =====================
+    const CHANNEL_LABELS = {
+        root: '👑 Root直连',
+        shell: '🔧 Shell直连',
+        su: '🔫 SU提权',
+        shizuku: '🔌 Shizuku',
+        shizuku_pending: '🔌 Shizuku待授权',
+        none: '❌ 无特权'
+    };
+
+    async function testShellChannel() {
+        updateItemStatus('shellTest', 'pending', '⏳ 检测中...');
+        try {
+            const r = await execPrivileged('id -u; echo ---; getprop ro.build.version.sdk; echo ---; command -v su');
+            const label = CHANNEL_LABELS[r.channel] || r.channel;
+            if (r.channel && r.channel !== 'none') {
+                const firstLine = (r.stdout || '').split('\n')[0].trim() || '?';
+                updateItemStatus('shellTest', 'granted', '✅ ' + label);
+                showToast('通道: ' + label + '\nuid=' + firstLine + '\n输出: ' + (r.stdout || '').trim().replace(/\n/g, ' ').slice(0, 100), 'success', 6000);
+            } else {
+                updateItemStatus('shellTest', 'denied', '❌ 无特权');
+                showToast('❌ 无可用特权通道\n' + (r.stderr || '(无错误输出)'), 'error', 6000);
+            }
+        } catch(e) {
+            updateItemStatus('shellTest', 'denied', '❌ 失败');
+            showToast('⚠️ 通道自检失败: ' + e.message, 'error');
         }
     }
 
@@ -416,6 +450,27 @@
         });
     }
 
+    // ========== execPrivileged 封装（自动选择最高权限通道） ==========
+    function execPrivileged(command) {
+        return new Promise((resolve, reject) => {
+            if (typeof NativeBridge === 'undefined' || !NativeBridge.execPrivileged) {
+                reject('NativeBridge.execPrivileged 不可用');
+                return;
+            }
+            const callbackId = 'ep_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            window._onPrivilegedResult = function(result) {
+                try {
+                    const r = (typeof result === 'string') ? JSON.parse(result) : result;
+                    if (r.callbackId !== callbackId) return;
+                    resolve(r);
+                } catch (e) {
+                    reject('回调解析失败: ' + e.message);
+                }
+            };
+            NativeBridge.execPrivileged(command, callbackId);
+        });
+    }
+
     function renderPermissions(status) {
         const container = document.getElementById('perm-container');
         let html = '';
@@ -434,7 +489,10 @@
                 // 判断状态：优先显示 pending，其次真实状态
                 const isPending = pendingKeys.has(p.key);
                 let statusClass, statusText;
-                if (isPending) {
+                if (p.key === 'shellTest' && !isPending) {
+                    statusClass = 'unknown';
+                    statusText = '👆 点击检测';
+                } else if (isPending) {
                     statusClass = 'pending';
                     statusText = '⏳ 请求中...';
                 } else if (val === true) {
