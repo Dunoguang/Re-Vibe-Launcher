@@ -49,13 +49,74 @@ class ShellModule(private val bridge: JsBridge) {
             val suBin = lines.getOrNull(1)
             val hasSu = !suBin.isNullOrEmpty() && suBin != "NO_SU"
 
+            // 最优特权通道（按 root → shell → su → shizuku 优先级）
+            val channel = when {
+                uid == 0 -> "root"
+                uid == 2000 -> "shell"
+                hasSu -> "su"
+                ShizukuAPI.isConnected() && ShizukuAPI.isPermissionGranted() -> "shizuku"
+                ShizukuAPI.isConnected() -> "shizuku_pending"
+                else -> "none"
+            }
             val data = base + mapOf(
                 "callbackId" to callbackId,
                 "apiLevel" to apiLevel,
-                "hasSu" to hasSu
+                "hasSu" to hasSu,
+                "channel" to channel
             )
             bridge.callback("_onDeviceCapabilities", gson.toJson(data))
         }
+    }
+
+    /**
+     * 以最高可用权限执行命令（自动选择通道）：
+     *   1. Root（uid=0）直连 Shell
+     *   2. Shell（uid=2000）直连 Shell
+     *   3. Shizuku（已授权）
+     *   4. SU（su -c 提权）
+     * 返回结果包含实际使用的 channel 字段。
+     */
+    @JavascriptInterface
+    fun execPrivileged(command: String, callbackId: String) {
+        val uid = Process.myUid()
+
+        // 1. Root 直连
+        if (uid == 0) {
+            Shell.execute(command) { r -> callbackPrivileged(callbackId, "root", r.stdout, r.stderr, r.statusCode) }
+            return
+        }
+        // 2. Shell 直连
+        if (uid == 2000) {
+            Shell.execute(command) { r -> callbackPrivileged(callbackId, "shell", r.stdout, r.stderr, r.statusCode) }
+            return
+        }
+        // 3. Shizuku 已授权
+        if (ShizukuAPI.isConnected() && ShizukuAPI.isPermissionGranted()) {
+            ShizukuAPI.execute(command) { r -> callbackPrivileged(callbackId, "shizuku", r.stdout, r.stderr, r.statusCode) }
+            return
+        }
+        // 4. SU 提权（先探测 su 二进制，避免直接 su -c 在无 root 设备上报错/挂起）
+        Shell.execute("command -v su 2>/dev/null || echo NO_SU") { r ->
+            val hasSu = r.stdout.trim().isNotEmpty() && r.stdout.trim() != "NO_SU"
+            if (hasSu) {
+                Shell.execute("su -c \"$command\" 2>&1") { rr ->
+                    callbackPrivileged(callbackId, "su", rr.stdout, rr.stderr, rr.statusCode)
+                }
+            } else {
+                callbackPrivileged(callbackId, "none", "", "无可用特权通道（非 root/shell uid，无 su，Shizuku 未授权）", -1)
+            }
+        }
+    }
+
+    private fun callbackPrivileged(callbackId: String, channel: String, stdout: String, stderr: String, statusCode: Int) {
+        val data = mapOf(
+            "callbackId" to callbackId,
+            "channel" to channel,
+            "stdout" to stdout,
+            "stderr" to stderr,
+            "statusCode" to statusCode
+        )
+        bridge.callback("_onPrivilegedResult", gson.toJson(data))
     }
 
     /**

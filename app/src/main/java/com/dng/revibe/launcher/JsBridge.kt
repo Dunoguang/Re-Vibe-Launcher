@@ -32,6 +32,9 @@ class JsBridge(context: Context, webView: WebView) {
     @JavascriptInterface
     fun getDeviceCapabilities(callbackId: String) = shellModule.getDeviceCapabilities(callbackId)
 
+    @JavascriptInterface
+    fun execPrivileged(command: String, callbackId: String) = shellModule.execPrivileged(command, callbackId)
+
     // ============ ShizukuModule 委托 ============
     @JavascriptInterface
     fun shizukuIsConnected(): String = shizukuModule.isConnected()

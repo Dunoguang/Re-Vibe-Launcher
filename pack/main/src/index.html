@@ -360,6 +360,18 @@
         }
         if (deviceInfo.projectMedia === 'allow') parts.push('🎥 免授权 ON');
         else if (deviceInfo.projectMedia === 'ignore' || deviceInfo.projectMedia === 'default') parts.push('🎥 免授权 OFF');
+        // 最优特权执行通道
+        if (deviceInfo.channel) {
+            const labels = {
+                root: '👑 Root直连',
+                shell: '🔧 Shell直连',
+                su: '🔫 SU提权',
+                shizuku: '🔌 Shizuku',
+                shizuku_pending: '🔌 Shizuku待授权',
+                none: '❌ 无特权'
+            };
+            parts.push('通道:' + (labels[deviceInfo.channel] || deviceInfo.channel));
+        }
         el.innerHTML = '设备: ' + parts.join(' · ');
     }
 
