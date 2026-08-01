@@ -205,9 +205,9 @@
         </div>
         <div style="display:flex;gap:8px;">
             <button class="refresh-btn" style="flex:1;" id="btn-start-preview" onclick="startScreenPreview()">▶️ 开始预览</button>
-            <button class="refresh-btn" style="flex:1;" id="btn-stop-preview" onclick="stopScreenPreview()" disabled>⏸️ 暂停预览</button>
+            <button class="refresh-btn" style="flex:1;" id="btn-stop-preview" onclick="stopScreenPreview()" disabled>⏹️ 停止预览</button>
         </div>
-        <button class="refresh-btn" style="margin-top:8px;" onclick="enableNoAuthPreview()">🔓 免授权预览（需 Root / Shizuku）</button>
+        <button class="refresh-btn" style="margin-top:8px;" id="btn-noauth" onclick="enableNoAuthPreview()">🔓 免授权预览（需 Root / Shizuku）</button>
     </div>
     <button class="refresh-btn" onclick="checkPermissions()">🔄 刷新状态</button>
 
@@ -319,33 +319,27 @@
 
     // ===================== 渲染权限列表 =====================
     // ===================== 设备能力检测（前端侧，通过 execShell） =====================
-    let deviceInfo = { uid: null, isRoot: false, isShell: false, hasSU: false };
+    let deviceInfo = { apiLevel: null, uid: null, isRoot: false, isShell: false, hasSu: false, shizukuConnected: false, shizukuGranted: false, projectMedia: 'unknown' };
 
+    // 设备能力检测（后端一次性返回：uid/root/shell/su/Shizuku 连接与授权/AppOps PROJECT_MEDIA/apiLevel）
     async function detectDevice() {
         const infoEl = document.getElementById('device-info');
         if (!infoEl) return;
         infoEl.innerHTML = '⏳ 检测设备能力...';
         try {
-            // uid 检测
-            try {
-                const uidRes = await execShell('id -u');
-                const uid = (uidRes.stdout || '').trim();
-                deviceInfo.uid = uid;
-                deviceInfo.isRoot = uid === '0';
-                deviceInfo.isShell = uid === '2000';
-            } catch(e) {}
-            // su 检测
-            try {
-                const suRes = await execShell('su -c whoami 2>/dev/null || echo no');
-                deviceInfo.hasSU = suRes.success && (suRes.stdout || '').trim() === 'root';
-            } catch(e) {}
-            // shizuku
-            try {
-                const raw = NativeBridge.shizukuIsConnected();
-                const info = JSON.parse(raw);
-                deviceInfo.shizukuConnected = info.connected === true;
-            } catch(e) {}
+            if (!NativeBridge.getDeviceCapabilities) throw new Error('getDeviceCapabilities 不可用');
+            const data = await new Promise((resolve, reject) => {
+                const callbackId = 'dc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                window._onDeviceCapabilities = function(j) {
+                    const d = (typeof j === 'string') ? JSON.parse(j) : j;
+                    if (d.callbackId === callbackId) resolve(d);
+                };
+                try { NativeBridge.getDeviceCapabilities(callbackId); }
+                catch(e) { reject(e); }
+            });
+            deviceInfo = data;
             updateDeviceInfo();
+            updateNoAuthUI(data.projectMedia);
         } catch(e) {
             infoEl.innerHTML = '⚠️ 设备检测失败';
         }
@@ -355,13 +349,33 @@
         const el = document.getElementById('device-info');
         if (!el) return;
         const parts = [];
-        if (deviceInfo.uid) parts.push('UID: ' + deviceInfo.uid);
+        if (deviceInfo.apiLevel) parts.push('Android ' + deviceInfo.apiLevel);
+        if (deviceInfo.uid != null) parts.push('UID ' + deviceInfo.uid);
         if (deviceInfo.isRoot) parts.push('👑 Root');
         else if (deviceInfo.isShell) parts.push('🔧 Shell');
         else parts.push('📱 App');
-        if (deviceInfo.hasSU) parts.push('🔫 su');
-        if (deviceInfo.shizukuConnected) parts.push('🔌 Shizuku');
+        if (deviceInfo.hasSu) parts.push('🔫 su');
+        if (deviceInfo.shizukuConnected) {
+            parts.push(deviceInfo.shizukuGranted ? '🔌 Shizuku ✓' : '🔌 Shizuku(未授权)');
+        }
+        if (deviceInfo.projectMedia === 'allow') parts.push('🎥 免授权 ON');
+        else if (deviceInfo.projectMedia === 'ignore' || deviceInfo.projectMedia === 'default') parts.push('🎥 免授权 OFF');
         el.innerHTML = '设备: ' + parts.join(' · ');
+    }
+
+    // 免授权按钮状态联动：已开启 → 变绿禁用
+    function updateNoAuthUI(mode) {
+        const btn = document.getElementById('btn-noauth');
+        if (!btn) return;
+        if (mode === 'allow') {
+            btn.textContent = '✅ 免授权已开启';
+            btn.disabled = true;
+            btn.style.opacity = 0.6;
+        } else {
+            btn.textContent = '🔓 免授权预览（需 Root / Shizuku）';
+            btn.disabled = false;
+            btn.style.opacity = 1;
+        }
     }
 
     // ========== execShell 封装（同原项目 shell.js） ==========
@@ -508,6 +522,10 @@
             if (previewRunning) startFpsCounter(); else stopFpsCounter();
         }
         updatePreviewUI();
+        // 免授权结果后刷新设备信息（同步按钮/状态）
+        if (d.message && d.message.indexOf('免授权') >= 0) {
+            setTimeout(detectDevice, 600);
+        }
     };
 
     function updatePreviewUI() {
