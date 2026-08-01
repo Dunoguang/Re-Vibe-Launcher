@@ -500,7 +500,10 @@
         const d = (typeof data === 'string') ? JSON.parse(data) : data;
         previewStarting = false;
         showToast(d.message || (d.success ? '✅ 操作成功' : '❌ 操作失败'), d.success ? 'success' : 'error');
-        if (typeof d.running === 'boolean') previewRunning = d.running;
+        if (typeof d.running === 'boolean') {
+            previewRunning = d.running;
+            if (previewRunning) startFpsCounter(); else stopFpsCounter();
+        }
         updatePreviewUI();
     };
 
@@ -511,21 +514,27 @@
         if (wrap) wrap.style.display = previewRunning ? 'block' : 'none';
         if (btnStart) { btnStart.disabled = previewRunning || previewStarting; btnStart.style.opacity = (previewRunning || previewStarting) ? 0.4 : 1; }
         if (btnStop) { btnStop.disabled = !previewRunning; btnStop.style.opacity = previewRunning ? 1 : 0.4; }
-        // FPS 统计
-        if (previewRunning) {
-            const fpsEl = document.getElementById('preview-fps');
-            if (fpsEl) {
-                frameCount = 0;
-                clearInterval(fpsTimer);
-                fpsTimer = setInterval(function() {
-                    if (fpsEl && previewRunning) fpsEl.textContent = '实时帧率: ' + frameCount + ' FPS';
-                }, 1000);
-            }
-        } else {
-            clearInterval(fpsTimer);
-            const fpsEl = document.getElementById('preview-fps');
-            if (fpsEl) fpsEl.textContent = '等待帧数据...';
-        }
+    }
+
+    // FPS 统计：每秒读取后立即清零 → 显示最近 1 秒的真实帧数（而非累计值）
+    function startFpsCounter() {
+        clearInterval(fpsTimer);
+        frameCount = 0;
+        const fpsEl = document.getElementById('preview-fps');
+        if (!fpsEl) return;
+        fpsEl.textContent = '实时帧率: 0 FPS';
+        fpsTimer = setInterval(function() {
+            const fps = frameCount;
+            frameCount = 0; // 关键：读取后立即重置，避免越滚越大
+            if (previewRunning) fpsEl.textContent = '实时帧率: ' + fps + ' FPS';
+        }, 1000);
+    }
+
+    function stopFpsCounter() {
+        clearInterval(fpsTimer);
+        fpsTimer = null;
+        const fpsEl = document.getElementById('preview-fps');
+        if (fpsEl) fpsEl.textContent = '等待帧数据...';
     }
 
     function startScreenPreview() {
@@ -556,6 +565,7 @@
             const info = JSON.parse(NativeBridge.isScreenPreviewing());
             previewRunning = info.capturing === true;
         } catch(e) { previewRunning = false; }
+        if (previewRunning) startFpsCounter(); else stopFpsCounter();
         updatePreviewUI();
     }
 
