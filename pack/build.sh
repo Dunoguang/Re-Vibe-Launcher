@@ -10,7 +10,8 @@ echo "==> 构建控制中心 (control-center) ..."
 npm run build -w control-center
 
 echo "==> 复制到 app/src/main/assets ..."
-ASSETS=../app/src/main/assets
+ASSETS="$(cd ../app/src/main && pwd)/assets"
+mkdir -p "$ASSETS"
 
 cp main/dist/index.html "$ASSETS/index.html"
 cp control-center/dist/control_center.html "$ASSETS/control_center.html"
