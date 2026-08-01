@@ -27,9 +27,12 @@ import kotlin.math.min
 /**
  * 屏幕实时预览模块（MediaProjection 截屏流 → WebView JS 帧回调）
  *
- * 使用 MediaProjection + VirtualDisplay + ImageReader 持续截取屏幕，
- * 将帧压缩为 JPEG base64 通过 bridge.callback("_onScreenFrame", ...) 推送给 Web 端渲染。
- * 仅用于实时预览，不进行任何落盘录制。
+ * 关键设计：Android 14+ 的 MediaProjection token 是"单次使用"的——
+ * 一旦调用 stop() 就必须重新授权。为了"授权一次、之后免打扰"：
+ *   - 停止预览 = 暂停：只关闭 ImageReader 并 setSurface(null)，保留 MediaProjection + VirtualDisplay + 前台服务
+ *   - 再次预览 = 恢复：重建 ImageReader 并 setSurface()，全程不再弹授权框
+ *   - 只有 Activity 销毁 / token 被系统回收时才真正 stop() 回收 token
+ * 代价：暂停期间前台服务保活（系统常驻"屏幕预览"通知），否则 token 失效需重新授权。
  */
 class ScreenCaptureModule(private val bridge: JsBridge) {
 
@@ -57,13 +60,17 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
 
     @Volatile
     private var isCapturing = false
+
+    /** MediaProjection token 是否仍然有效（未被 stop / 未被系统回收） */
+    @Volatile
+    private var projectionActive = false
     private var lastFrameTime = 0L
 
     private var pendingStartCallback: String? = null
 
     // ==================== JS 可调用接口 ====================
 
-    /** 开始屏幕预览：请求 MediaProjection 权限并启动截屏流 */
+    /** 开始屏幕预览：优先复用已授权 token（不弹窗），否则走 MediaProjection 授权 */
     fun startPreview(callbackId: String) {
         if (isCapturing) {
             callbackResult(callbackId, true, "屏幕预览已在运行", true)
@@ -74,8 +81,15 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
             callbackResult(callbackId, false, "Context 不是 Activity", false)
             return
         }
-        val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
+        // 已有存活 token：直接恢复，无需再次授权
+        val proj = mediaProjection
+        if (projectionActive && proj != null) {
+            resumeCapture(activity, proj, callbackId)
+            return
+        }
+
+        val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         pendingStartCallback = callbackId
 
         // Android 14+（API 34）：必须在 getMediaProjection() 之前启动 mediaProjection 类型前台服务
@@ -95,11 +109,10 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
         }
     }
 
-    /** 停止屏幕预览 */
+    /** 停止屏幕预览（暂停模式：保留 token，恢复无需再授权） */
     fun stopPreview(callbackId: String) {
-        stopCaptureInternal()
-        stopForegroundService()
-        callbackResult(callbackId, true, "屏幕预览已停止", false)
+        pauseCapture()
+        callbackResult(callbackId, true, "预览已暂停，随时可恢复（无需再次授权）", false)
     }
 
     /** 查询是否正在预览 */
@@ -134,6 +147,7 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
                 stopForegroundService()
                 return
             }
+            projectionActive = true
             startCaptureLoop(activity, projection, callbackId)
             callbackResult(callbackId, true, "屏幕预览已启动", true)
         } catch (e: Exception) {
@@ -145,29 +159,10 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
 
     // ==================== 截屏流核心 ====================
 
+    /** 首次启动：创建 VirtualDisplay */
     private fun startCaptureLoop(activity: Activity, projection: MediaProjection, callbackId: String?) {
-        // 获取真实屏幕尺寸
-        val wm = activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val screenRect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            wm.currentWindowMetrics.bounds
-        } else {
-            @Suppress("DEPRECATION")
-            val pt = Point()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealSize(pt)
-            Rect(0, 0, pt.x, pt.y)
-        }
-        val density = activity.resources.displayMetrics.densityDpi
+        val (pw, ph, density) = computePreviewSize(activity)
 
-        // 等比缩放预览尺寸
-        var w = screenRect.width()
-        var h = screenRect.height()
-        if (w <= 0 || h <= 0) { w = 1080; h = 2400 }
-        val scale = min(1f, min(MAX_PREVIEW_WIDTH.toFloat() / w, MAX_PREVIEW_HEIGHT.toFloat() / h))
-        val pw = (w * scale).toInt().coerceAtLeast(1)
-        val ph = (h * scale).toInt().coerceAtLeast(1)
-
-        // 后台线程用于 ImageReader 回调，避免阻塞主线程
         captureThread = HandlerThread("ScreenCaptureThread").also { it.start() }
         captureHandler = Handler(captureThread!!.looper)
 
@@ -175,12 +170,13 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
             reader.setOnImageAvailableListener(imageListener, captureHandler)
         }
 
-        // 监听投影停止（如用户从系统状态栏手动终止投屏）
+        // 监听投影停止（如系统回收 token / 用户从状态栏终止投屏）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try { projectionCallback?.let { projection.unregisterCallback(it) } } catch (_: Exception) {}
             val cb = object : MediaProjection.Callback() {
                 override fun onStop() {
                     Log.i(TAG, "MediaProjection 被系统停止")
-                    stopCaptureInternal()
+                    onProjectionStopped()
                 }
             }
             projectionCallback = cb
@@ -191,7 +187,6 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
         isCapturing = true
         lastFrameTime = 0L
 
-        // 创建虚拟显示器，把屏幕镜像到 ImageReader
         try {
             virtualDisplay = projection.createVirtualDisplay(
                 "ReVibeScreenPreview",
@@ -204,10 +199,64 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
             Log.i(TAG, "虚拟显示器已创建: ${pw}x$ph @ $density")
         } catch (e: Exception) {
             Log.e(TAG, "createVirtualDisplay 失败", e)
-            stopCaptureInternal()
+            releaseInternal()
             stopForegroundService()
             callbackResult(callbackId, false, "创建虚拟显示器失败: ${e.message}", false)
         }
+    }
+
+    /** 恢复：复用已有 token 与 VirtualDisplay，重建 ImageReader 并重新挂 surface */
+    private fun resumeCapture(activity: Activity, projection: MediaProjection, callbackId: String) {
+        val vd = virtualDisplay
+        if (vd == null) {
+            // token 还在但虚拟显示器没了，退化为首次启动（无需重新授权）
+            startCaptureLoop(activity, projection, callbackId)
+            callbackResult(callbackId, true, "屏幕预览已启动", true)
+            return
+        }
+        val (pw, ph, _) = computePreviewSize(activity)
+
+        captureThread = HandlerThread("ScreenCaptureThread").also { it.start() }
+        captureHandler = Handler(captureThread!!.looper)
+
+        imageReader = ImageReader.newInstance(pw, ph, PixelFormat.RGBA_8888, 3).also { reader ->
+            reader.setOnImageAvailableListener(imageListener, captureHandler)
+        }
+
+        try {
+            vd.setSurface(imageReader?.surface)
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复 surface 失败", e)
+            pauseCapture()
+            callbackResult(callbackId, false, "恢复预览失败: ${e.message}", false)
+            return
+        }
+        isCapturing = true
+        lastFrameTime = 0L
+        Log.i(TAG, "屏幕预览已恢复（复用 token，未弹授权框）")
+        callbackResult(callbackId, true, "屏幕预览已启动（免授权恢复）", true)
+    }
+
+    private fun computePreviewSize(activity: Activity): Triple<Int, Int, Int> {
+        val wm = activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val screenRect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            wm.currentWindowMetrics.bounds
+        } else {
+            @Suppress("DEPRECATION")
+            val pt = Point()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealSize(pt)
+            Rect(0, 0, pt.x, pt.y)
+        }
+        val density = activity.resources.displayMetrics.densityDpi
+
+        var w = screenRect.width()
+        var h = screenRect.height()
+        if (w <= 0 || h <= 0) { w = 1080; h = 2400 }
+        val scale = min(1f, min(MAX_PREVIEW_WIDTH.toFloat() / w, MAX_PREVIEW_HEIGHT.toFloat() / h))
+        val pw = (w * scale).toInt().coerceAtLeast(1)
+        val ph = (h * scale).toInt().coerceAtLeast(1)
+        return Triple(pw, ph, density)
     }
 
     /** ImageReader 帧监听：限频推送 base64 JPEG 到 JS */
@@ -262,10 +311,39 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
         }
     }
 
-    // ==================== 停止清理 ====================
+    // ==================== 暂停 / 停止 / 清理 ====================
 
-    private fun stopCaptureInternal() {
-        if (!isCapturing && mediaProjection == null) return
+    /** 暂停：保留 token + VirtualDisplay + 前台服务，仅停帧 */
+    private fun pauseCapture() {
+        if (!isCapturing && imageReader == null) return
+        isCapturing = false
+
+        try { imageReader?.close() } catch (_: Exception) {}
+        imageReader = null
+
+        // 断开渲染 surface（虚拟显示器保留，token 保活）
+        try { virtualDisplay?.setSurface(null) } catch (_: Exception) {}
+
+        captureHandler?.removeCallbacksAndMessages(null)
+        try { captureThread?.quitSafely() } catch (_: Exception) {}
+        captureThread = null
+        captureHandler = null
+
+        lastFrameTime = 0L
+        Log.i(TAG, "屏幕预览已暂停（token 保活）")
+    }
+
+    /** token 被系统回收时调用 */
+    private fun onProjectionStopped() {
+        projectionActive = false
+        pauseCapture()
+        releaseInternal()
+        stopForegroundService()
+    }
+
+    /** 彻底释放所有资源（Activity 销毁 / 授权失败 / token 回收） */
+    private fun releaseInternal() {
+        projectionActive = false
         isCapturing = false
 
         val proj = mediaProjection
@@ -287,6 +365,7 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
 
         lastFrameTime = 0L
         try { proj?.stop() } catch (_: Exception) {}
+        Log.i(TAG, "屏幕预览资源已彻底释放")
     }
 
     private fun stopForegroundService() {
@@ -298,7 +377,7 @@ class ScreenCaptureModule(private val bridge: JsBridge) {
 
     /** 供 MainActivity.onDestroy 调用，彻底清理 */
     fun release() {
-        stopCaptureInternal()
+        releaseInternal()
         stopForegroundService()
     }
 
