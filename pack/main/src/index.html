@@ -337,7 +337,7 @@
 
     // ===================== 渲染权限列表 =====================
     // ===================== 设备能力检测（前端侧，通过 execShell） =====================
-    let deviceInfo = { apiLevel: null, uid: null, isRoot: false, isShell: false, hasSu: false, shizukuConnected: false, shizukuGranted: false, projectMedia: 'unknown' };
+    let deviceInfo = { apiLevel: null, uid: null, isRoot: false, isShell: false, hasSu: false, shizukuConnected: false, shizukuGranted: false };
 
     // 设备能力检测（后端一次性返回：uid/root/shell/su/Shizuku 连接与授权/AppOps PROJECT_MEDIA/apiLevel）
     async function detectDevice() {
@@ -375,8 +375,6 @@
         if (deviceInfo.shizukuConnected) {
             parts.push(deviceInfo.shizukuGranted ? '🔌 Shizuku ✓' : '🔌 Shizuku(未授权)');
         }
-        if (deviceInfo.projectMedia === 'allow') parts.push('🎥 免授权 ON');
-        else if (deviceInfo.projectMedia === 'ignore' || deviceInfo.projectMedia === 'default') parts.push('🎥 免授权 OFF');
         // 最优特权执行通道
         if (deviceInfo.channel) {
             const labels = {
