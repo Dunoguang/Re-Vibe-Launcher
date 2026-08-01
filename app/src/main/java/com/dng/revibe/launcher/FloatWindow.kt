@@ -148,8 +148,12 @@ class FloatWindow(context: Context) {
                     javaScriptEnabled = true
                     allowFileAccess = true
                     domStorageEnabled = true
-                    allowUniversalAccessFromFileURLs = true
-                    allowFileAccessFromFileURLs = true
+                    // 这两个 API 在 API 30+ 标记弃用，但加载本地 asset 仍需开启跨文件访问，故保留并压制警告
+                    @Suppress("DEPRECATION")
+                    run {
+                        allowUniversalAccessFromFileURLs = true
+                        allowFileAccessFromFileURLs = true
+                    }
                     // 与主 WebView 一致，不用 wide viewport（避免破坏 backdrop-filter 合成）
                     loadWithOverviewMode = false
                     useWideViewPort = false
