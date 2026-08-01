@@ -23,10 +23,11 @@ object ShizukuAPI {
         }
     }
 
-    /** 尝试弹出 Shizuku 授权界面，返回是否成功启动 */
+    /** 尝试弹出 Shizuku 授权界面，返回是否成功发起请求 */
     fun requestPermission(requestCode: Int): Boolean {
         return try {
             Shizuku.requestPermission(requestCode)
+            true
         } catch (e: Exception) {
             false
         }
