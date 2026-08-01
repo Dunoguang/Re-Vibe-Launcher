@@ -66,16 +66,57 @@ jobs:
           fi
           
           echo "📤 上传中..."
-          RESP=$(curl -sS -X POST https://tempfile.org/api/upload/local \
-            -F "files=@${APK}" -F "expiryHours=48")
-          URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'] + 'download')")
+          UPLOADED=""
           
+          # ── 主服务: tempfile.org ──
+          if [ -z "$UPLOADED" ]; then
+            echo "尝试 tempfile.org ..."
+            RESP=$(curl -sS --max-time 30 -X POST https://tempfile.org/api/upload/local \
+              -F "files=@${APK}" -F "expiryHours=48" 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['files'][0]['url'] + 'download')" 2>/dev/null)
+            if [ -n "$URL" ] && [ "$URL" != "download" ]; then
+              UPLOADED="tempfile.org"; EXPIRY="48 小时"
+            else
+              echo "  ⚠️ tempfile.org 失败，切换备用..."
+            fi
+          fi
+          
+          # ── 备用1: qu.ax (约30天) ──
+          if [ -z "$UPLOADED" ]; then
+            echo "尝试 qu.ax ..."
+            RESP=$(curl -sS --max-time 30 -F "files[]=@${APK}" https://qu.ax/upload.php 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null)
+            if [ -n "$URL" ]; then
+              UPLOADED="qu.ax"; EXPIRY="30 天"
+            else
+              echo "  ⚠️ qu.ax 失败，切换备用..."
+            fi
+          fi
+          
+          # ── 备用2: uguu.se (3小时) ──
+          if [ -z "$UPLOADED" ]; then
+            echo "尝试 uguu.se ..."
+            RESP=$(curl -sS --max-time 30 -F "files[]=@${APK}" https://uguu.se/upload 2>/dev/null)
+            URL=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['files'][0]['url'])" 2>/dev/null)
+            if [ -n "$URL" ]; then
+              UPLOADED="uguu.se"; EXPIRY="3 小时"
+            else
+              echo "  ⚠️ uguu.se 也失败..."
+            fi
+          fi
+          
+          if [ -z "$UPLOADED" ]; then
+            echo "❌ 所有上传服务都挂了 呜... 主人自己去传吧 喵" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          echo "✅ 上传成功 ($UPLOADED)"
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ## 🐾 构建完成 喵～
           
-          | 📦 产物 | 🔗 链接 | 📏 大小 | ⏰ 有效期 |
-          |---------|---------|---------|-----------|
-          | Release APK | [点击下载](${URL}) | $(du -h "$APK" | cut -f1) | 48 小时 |
+          | 📦 产物 | 🔗 链接 | 📏 大小 | ⏰ 有效期 | ☁️ 服务 |
+          |---------|---------|---------|-----------|--------|
+          | Release APK | [点击下载](${URL}) | $(du -h "$APK" | cut -f1) | ${EXPIRY} | ${UPLOADED} |
           
           > \`${URL}\`
           EOF
